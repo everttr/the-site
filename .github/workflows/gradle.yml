@@ -15,7 +15,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            packages: write # I *think* this is needed
+            packages: write
         
         steps:
         # Setup
@@ -35,8 +35,11 @@ jobs:
 
         # Publish
         - name: Upload built .jars
+          id: upload-artifact
           uses: actions/upload-artifact@v4
           with:
             name: Package
             path: build/libs
-
+        - name: Report URL of newest build
+          id: report-url
+          run: echo ${{ steps.upload-artifact.outputs.artifact-url }}
