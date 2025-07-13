@@ -6,3 +6,6 @@
 
 # Ignore Gradle build output directory
 build
+
+# Other files wishes to be hidden
+*.hidden.txt
