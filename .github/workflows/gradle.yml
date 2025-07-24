@@ -44,15 +44,15 @@ jobs:
           id: report-url
           run: echo ${{ steps.upload-artifact.outputs.artifact-url }}
 
-        # SSH into EC2 server to deploy new version
+        # Get current job URL for later
         - name: Get Job ID from GH API
+          uses: Tiryoh/gha-jobid-action@v0
           id: get-job-id
-          env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          run: |
-            jobs=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id}}/attempts/${{ github.run_attempt }}/jobs)
-            job_id=$(echo $jobs | jq -r '.jobs[] | select(.runner_name=="${{ runner.name }}") | .id')
-            echo "job_id=$job_id" >> $GITHUB_OUTPUT
+          with:
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            job_name: ${{ github.job }}
+
+        # SSH into EC2 server to deploy new version
         - name: SSH into EC2 and deploy
           uses: appleboy/ssh-action@v1.2.2
           with:
@@ -63,5 +63,5 @@ jobs:
             script: |
               set -e
               cd "${{ secrets.EC2_SITE_DIR }}"
-              echo ${{ steps.get-job-id.outputs.job_id }} > ${{ secrets.EC2_JOB_ID_PATH }}
+              echo ${{ steps.get-job-id.outputs.url }} > ${{ secrets.EC2_JOB_ID_PATH }}
               python3 ${{ secrets.EC2_DEPLOY_SCRIPT_PATH }}
