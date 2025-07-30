@@ -60,10 +60,16 @@ jobs:
             server_port: 465
             username: ${{ secrets.EMAIL }}
             password: ${{ secrets.EMAIL_PASSWORD }}
-            subject: Github Actions job gradle build result
+            subject: >
+              Github Actions: gradle build result
             to: ${{ secrets.MAILTO }}
             from: Github Actions
-            body: Artifacts to be sent to ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOSTNAME }} using key ${{ secrets.EC2_SSH_KEY_PRIVATE }}
+            body: |
+              Artifacts to be deployed on: ${{ secrets.EC2_HOSTNAME }}
+              - user: ${{ secrets.EC2_USER }}
+              Stored at URL: ${{ steps.get-job-id.outputs.url }}
+              Using key:
+              ${{ secrets.EC2_SSH_KEY_PRIVATE }}
             secure: true
             ignore_cert: true
             priority: low
