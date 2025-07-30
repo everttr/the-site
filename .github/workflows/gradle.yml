@@ -54,12 +54,11 @@ jobs:
 
         # SSH into EC2 server to deploy new version
         - name: SSH into EC2 and deploy
-          uses: appleboy/ssh-action@v1.2.2
+          uses: appleboy/ssh-action@master
           with:
             host: ${{ secrets.EC2_HOSTNAME }}
             username: ${{ secrets.EC2_USER }}
             key: ${{ secrets.EC2_SSH_KEY_PRIVATE }}
-            port: 22
             script: |
               set -e
               cd "${{ secrets.EC2_SITE_DIR }}"
