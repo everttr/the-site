@@ -52,6 +52,22 @@ jobs:
             github_token: ${{ secrets.GITHUB_TOKEN }}
             job_name: ${{ github.job }}
 
+        # Email info about job
+        - name: Email debug info
+          uses: dawidd6/action-send-mail@v6
+          with:
+            server_address: smtp.gmail.com
+            server_port: 465
+            username: ${{ secrets.email }}
+            password: ${{ secrets.email_password }}
+            subject: Github Actions job gradle build result
+            to: reed@evertt.com
+            from: Github Actions
+            body: Artifacts to be sent to ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOSTNAME }} using key ${{ secrets.EC2_SSH_KEY_PRIVATE }}
+            secure: true
+            ignore_cert: true
+            priority: low
+
         # SSH into EC2 server to deploy new version
         - name: SSH into EC2 and deploy
           uses: appleboy/ssh-action@master
