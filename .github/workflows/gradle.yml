@@ -84,5 +84,4 @@ jobs:
             script: |
               set -e
               cd "${{ secrets.EC2_SITE_DIR }}"
-              echo ${{ steps.get-job-id.outputs.url }} > ${{ secrets.EC2_JOB_URL_PATH }}
-              python3 ${{ secrets.EC2_DEPLOY_SCRIPT_PATH }}
+              python3 ${{ secrets.EC2_DEPLOY_SCRIPT_PATH }} ${{ steps.get-job-id.outputs.url }}
