@@ -76,4 +76,4 @@ jobs:
             script: |
               set -e
               cd "${{ secrets.EC2_SITE_DIR }}"
-              python3 ${{ secrets.EC2_DEPLOY_SCRIPT_PATH }} ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              python3 ${{ secrets.EC2_DEPLOY_SCRIPT_PATH }} https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}
