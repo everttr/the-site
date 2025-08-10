@@ -30,11 +30,13 @@ jobs:
             distribution: "temurin"
             java-version: "17"
         - name: Setup Gradle
+          with:
+            cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
           uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
 
         # Build
         - name: Build Gradle project
-          run: ./gradlew build
+          run: ./gradlew build --configuration-cache
 
         # Publish
         - name: Upload built .jars
