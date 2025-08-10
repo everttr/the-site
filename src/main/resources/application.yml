@@ -1,0 +1,19 @@
+server:
+  # General server properties
+  port: 443
+  session-timeout: 1200
+  # SSL properties
+  ssl:
+    enabled: true
+    key-store-type: PKCS12
+    key-store: classpath:keystore/the-site.p12
+    key-store-password: <PASSWORD>
+    key-password: <PASSWORD>
+    key-alias: the-site
+security:
+  require-ssl: true
+# Trust store
+#trust:
+#  store: keystore/the-site.p12
+#  store:
+#    password: <PASSWORD>

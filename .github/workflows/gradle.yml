@@ -21,6 +21,9 @@ jobs:
         # Setup
         - name: Checkout up-to-date from origin
           uses: actions/checkout@v4
+        - name: Add secrets to configuration
+          run: |
+            sed -i src/main/resources/application.yml "s/<PASSWORD>/${{ secrets.KEYSTORE_PASSWORD }}/g" *
         - name: Setup Java Environment
           uses: actions/setup-java@v4
           with:
