@@ -7,6 +7,9 @@
 # Ignore Gradle build output directory
 build
 
+# For locally testing, I need to make a lot of uncommitted changes to the application settings
+src/main/resources/application.yml
+
 # Other files wished to be hidden
 *.hidden.txt
 hidden/
