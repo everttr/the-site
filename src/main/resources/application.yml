@@ -17,3 +17,9 @@ security:
 #  store: WEB-INF/keystore/the-site.p12
 #  store:
 #    password: <PASSWORD>
+spring:
+  web:
+    resources:
+      static-locations: classpath:/static/
+  thymeleaf:
+    check-template-location: false

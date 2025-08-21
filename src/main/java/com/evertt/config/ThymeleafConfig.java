@@ -10,6 +10,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.spring6.templateresolver.SpringResourceTemplateResolver;
 import org.thymeleaf.spring6.view.ThymeleafViewResolver;
+import org.thymeleaf.templatemode.TemplateMode;
 
 @Configuration
 @EnableWebMvc
@@ -23,6 +24,10 @@ public class ThymeleafConfig implements WebMvcConfigurer, ApplicationContextAwar
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry reg) {
+        // reg.addResourceHandler("static/css/**").addResourceLocations("classpath:/static/css/");
+        // reg.addResourceHandler("static/js/**").addResourceLocations("classpath:/static/js/");
+        // reg.addResourceHandler("static/docs/**").addResourceLocations("classpath:/static/docs/");
+        // reg.addResourceHandler("static/images/**").addResourceLocations("classpath:/static/images/");
         reg.addResourceHandler("/static/**").addResourceLocations("classpath:/static/");
         reg.addResourceHandler("/favicon.ico").addResourceLocations("classpath:/static/favicon.ico");
     }
@@ -44,7 +49,7 @@ public class ThymeleafConfig implements WebMvcConfigurer, ApplicationContextAwar
     @Bean
     public SpringResourceTemplateResolver thymeleafTemplateResolver() {
         var tr = new SpringResourceTemplateResolver();
-        tr.setTemplateMode("HTML5");
+        tr.setTemplateMode(TemplateMode.HTML);
         tr.setPrefix("classpath:WEB-INF/templates/");
         tr.setSuffix(".html");
         tr.setCacheTTLMs(3_600_000L);
