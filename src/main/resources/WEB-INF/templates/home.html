@@ -11,7 +11,7 @@
 </head>
 <body>
     <!-- Header -->
-    <div th:replace="fragments/header :: header" class="container">
+    <div th:replace="~{fragments/header :: header}" class="container">
         <header th:fragment="header" id="page-header">
             <div>
                 <a th:href="@{/home}">The Site.</a>
@@ -41,7 +41,7 @@
     </div>
 
     <!-- Footer -->
-    <div th:replace="fragments/footer :: footer">
+    <div th:replace="~{fragments/footer :: footer}">
 
     </div>
 </body>
