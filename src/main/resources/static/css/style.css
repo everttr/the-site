@@ -1,1 +1,43 @@
-/* Implement me! */
+/* Generics/overrides */
+html
+{
+
+}
+.container
+{
+    padding: 0;
+    margin: 0;
+    border: 0;
+}
+a
+{
+    text-decoration: underline;
+}
+
+/* Main page organization */
+#page-header
+{
+
+}
+#page-footer
+{
+
+}
+#floating-body
+{
+
+}
+#splash
+{
+    color: blue;
+    text-decoration: wavy;
+}
+
+/* Lower-level specifics */
+.paragraph:before
+{
+    float: left;
+    width: 0;
+    white-space: nowrap;
+    content: ". . . . . "
+}

@@ -24,10 +24,6 @@ public class ThymeleafConfig implements WebMvcConfigurer, ApplicationContextAwar
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry reg) {
-        // reg.addResourceHandler("static/css/**").addResourceLocations("classpath:/static/css/");
-        // reg.addResourceHandler("static/js/**").addResourceLocations("classpath:/static/js/");
-        // reg.addResourceHandler("static/docs/**").addResourceLocations("classpath:/static/docs/");
-        // reg.addResourceHandler("static/images/**").addResourceLocations("classpath:/static/images/");
         reg.addResourceHandler("/static/**").addResourceLocations("classpath:/static/");
         reg.addResourceHandler("/favicon.ico").addResourceLocations("classpath:/static/favicon.ico");
     }

@@ -9,12 +9,40 @@
     <link th:href="@{static/favicon.ico}" rel="icon" type="image/ico">
     <link th:href="@{static/css/style.css}" rel="stylesheet">
 </head>
-<!-- Header -->
-<!-- Body -->
-<body layout:fragment="body"></body>
 <body>
-    <h2>Test Attribute:</h2>
-    <div th:text="${testAttribute}"></div>
+    <!-- Header -->
+    <div th:replace="fragments/header :: header" class="container">
+        <header th:fragment="header" id="page-header">
+            <div>
+                <a th:href="@{/home}">The Site.</a>
+            </div>
+        </header>
+    </div>
+
+    <!-- Main Body -->
+    <div id="floating-body">
+        <!-- Splash -->
+        <div class="body-container">
+            <div id="splash">
+                <p th:text="${splashText}">Example Splash!</p>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="body-container paragraph-container">
+            <h2>Pages:</h2>
+            <ul>
+                <li th:each="page: ${pageRefs}">
+                    <a th:text="${page.name}" th:href="${page.location}">Example page with link</a>
+                    <p th:text="${page.description}" class="paragraph">Example description</p>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div th:replace="fragments/footer :: footer">
+
+    </div>
 </body>
-<!-- Footer -->
 </html>
