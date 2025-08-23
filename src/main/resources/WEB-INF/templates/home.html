@@ -6,8 +6,9 @@
 <head>
     <meta charset="utf-8">
     <title layout:title-pattern="$CONTENT_TITLE: $LAYOUT_TITLE">The Site</title>
-    <link th:href="@{static/favicon.ico}" rel="icon" type="image/ico">
-    <link th:href="@{static/css/style.css}" rel="stylesheet">
+    <link th:href="@{static/favicon.ico}" href="../../static/favicon.ico" rel="icon" type="image/ico">
+    <link th:href="@{static/css/style.css}" href="../../static/css/style.css" rel="stylesheet">
+    <script th:src="@{static/js/fluidBackground.js}" src="../../static/js/fluidBackground.js" type="module"></script>
 </head>
 <body>
     <!-- Header -->
@@ -19,30 +20,36 @@
         </header>
     </div>
 
-    <!-- Main Body -->
-    <div id="floating-body">
-        <!-- Splash -->
-        <div class="body-container">
-            <div id="splash">
-                <p th:text="${splashText}">Example Splash!</p>
+    <div id="main-scroller">
+        <!-- Main Body -->
+        <div id="floating-body">
+            <!-- Splash -->
+            <div class="body-container">
+                <div id="splash">
+                    <p th:text="${splashText}">Example Splash!</p>
+                </div>
             </div>
-        </div>
 
-        <!-- Content -->
-        <div class="body-container paragraph-container">
-            <h2>Pages:</h2>
-            <ul>
-                <li th:each="page: ${pageRefs}">
-                    <a th:text="${page.name}" th:href="${page.location}">Example page with link</a>
-                    <p th:text="${page.description}" class="paragraph">Example description</p>
-                </li>
-            </ul>
+            <!-- Content -->
+            <div class="body-container paragraph-container">
+                <h2>Pages:</h2>
+                <ul>
+                    <li th:each="page: ${pageRefs}">
+                        <p><a th:text="${page.name}" th:href="${page.location}">Example page with link</a></p>
+                        <p th:text="${page.description}" class="paragraph">Example description</p>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
 
     <!-- Footer -->
     <div th:replace="~{fragments/footer :: footer}">
-
+        <footer th:fragment="footer" id="page-footer">
+            <div id="footer-date">
+                Server Time: the <span th:text="${day}">Nth</span> day of the <span th:text="${month}">Nth</span> month of the <span th:text="${year}">Nth</span> year CE.
+            </div>
+        </footer>
     </div>
 </body>
 </html>
