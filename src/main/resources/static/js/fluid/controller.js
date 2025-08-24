@@ -23,6 +23,10 @@ var shaders = {
 var enabled;
 var curCanvW;
 var curCanvH;
+var timeSim = -1; // ms it's been running
+var timePrev = new Date().getMilliseconds();
+var lastTimeDelta;
+var focused = true;
 
 ////////////////////////////////////////////////////
 /*          ~~~ Function Definitions ~~~          */
@@ -51,6 +55,28 @@ function refreshCanvas(newWidth, newHeight) {
 
     // Make new texture buffers
     /* Implement me! */
+}
+function tryUpdateRepeating(_ = null) {
+    timeCur = new Date().getMilliseconds();
+    timeDelta = timeCur - timePrev;
+    timeSim += timeDelta;
+    timePrev = timeCur;
+    lastTimeDelta = timeDelta;
+    // so we don't update twice in the same frame for whatever reason
+    if (timeDelta == 0)
+        return;
+
+    updateSim(timeDelta / 1000.0);
+
+    if (focused)
+        requestAnimationFrame(tryUpdateRepeating);
+}
+function updateSim(deltaT) {
+    // Update the fluid simulation
+    /* Implement me! */
+
+    // Then render the changes
+    renderScene();
 }
 function renderScene() {
     // Clear all existing fragments
@@ -104,20 +130,39 @@ function init() {
     enabled = initCanvas() && initGL() && initShaderProgram();
     if (enabled) {
         pollResizeCanvas();
-        renderScene();
+
+        // Start render loop
+        tryUpdateRepeating();
+
+        // Focus/unfocus performance evetns
+        window.addEventListener("focus", () => {
+            timePrev = new Date().getMilliseconds() - lastTimeDelta; // start counting from now!
+            focused = true;
+            // Also have to start the rendering loop back up again
+            tryUpdateRepeating();
+        })
+        window.addEventListener("blur", () => {
+            // This will naturally dequeue the rendering loop
+            focused = false;
+        })
 
         // Interaction/event setup
         // Wave shader interaction
-        canvas.addEventListener("mousemove", (event) => {
-            let x = event.x;
-            let y = event.y;
-            // 
-        });
-        canvas.addEventListener("mouseclick", (event) => {
-            renderScene();
+        document.documentElement.addEventListener("mousemove", (event) => {
+            let x = event.clientX;
+            let y = event.clientY;
+            let canvRect = canvas.getBoundingClientRect();
+            if (x < canvRect.left || x > canvRect.right ||
+                y < canvRect.top || y > canvRect.bottom)
+                return;
+            // Make waves!
+            /* Implement me! */
         });
         // Possible resizing event
         /* Implement me! */
+        document.documentElement.addEventListener("click", (event) => {
+            console.log("i printed it");
+        });
     }
 }
 function initCanvas() {
