@@ -8,7 +8,6 @@
 const canvasScale = 0.5;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
-const helperScriptCount = 2;
 const DEBUG_VERBOSITY = 1;
 // Plain Globals
 var canvas;
@@ -24,7 +23,6 @@ var shaders = {
 var enabled;
 var curCanvW;
 var curCanvH;
-var helperScriptsLoaded = 0;
 
 ////////////////////////////////////////////////////
 /*          ~~~ Function Definitions ~~~          */
@@ -66,12 +64,12 @@ function renderScene() {
     let aspect = curCanvW / curCanvH;
     let zClipNear = 0.1;
     let zClipFar = 20.0;
-    let projMatrix = glMatrix.mat4.create();
-    glMatrix.mat4.ortho(projMatrix(), -1.0, 1.0, -1.0, 1.0, zClipNear, zClipFar);
+    let projMatrix = mat4.create();
+    mat4.ortho(projMatrix, -1.0, 1.0, -1.0, 1.0, zClipNear, zClipFar);
 
     // Create model view matrix
-    let modelViewMatrix = glMatrix.mat4.create();
-    glMatrix.mat4.translate(modelViewMatrix, modelViewMatrix,
+    let modelViewMatrix = mat4.create();
+    mat4.translate(modelViewMatrix, modelViewMatrix,
         [0., 0., -1.]
     );
 
@@ -81,6 +79,9 @@ function renderScene() {
         shaders.attributeLocs.vertexPosition,
         2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(shaders.attributeLocs.vertexPosition);
+
+    // Specify program to render with
+    gl.useProgram(shaders.program);
 
     // Provide proj matrix
     gl.uniformMatrix4fv(shaders.uniformLocs.projectionMatrix, false, projMatrix);
@@ -99,13 +100,6 @@ function renderScene() {
 /*          ~~~ Initialization ~~~          */
 //////////////////////////////////////////////
 
-function pollForInit() {
-    if (++helperScriptsLoaded == helperScriptCount) {
-        init();
-        return true;
-    }
-    return false;
-}
 function init() {
     enabled = initCanvas() && initGL() && initShaderProgram();
     if (enabled) {
@@ -206,9 +200,3 @@ function initShaderProgram() {
 
     return true;
 }
-
-// One-time setup
-var glMatrixScript = document.querySelector("#gl-matrix-js");
-glMatrixScript.addEventListener("load", pollForInit);
-var shaderSourceScript = document.querySelector("#shader-source-js");
-shaderSourceScript.addEventListener("load", pollForInit);

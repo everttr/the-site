@@ -9,14 +9,14 @@
     <link th:href="@{static/favicon.ico}" href="../../static/favicon.ico" rel="icon" type="image/ico">
     <link th:href="@{static/css/style.css}" href="../../static/css/style.css" rel="stylesheet">
     <script
+        id="gl-matrix-js"
         src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
         integrity="sha512-zhHQR0/H5SEBL3Wn6yYSaTTZej12z0hVZKOv3TwCUXT1z5qeqGcXJLLrbERYRScEDDpYIJhPC1fk31gqR783iQ=="
         crossorigin="anonymous"
-        id="gl-matrix-js"
-        defer>
+        defer></script>
     </script>
-    <script th:src="@{static/js/fluid/shaderSources.js}" type="module" id="shader-source-js"></script>
-    <script th:src="@{static/js/fluid/controller.js}" type="module" id="fluid-controller-js" defer></script>
+    <script th:src="@{static/js/fluid/shaderSources.js}" type="module" th:id="shader-source-js" defer></script>
+    <script th:src="@{static/js/fluid/controller.js}" type="module" th:id="fluid-controller-js" defer></script>
 </head>
 <body>
     <!-- Header -->
@@ -65,7 +65,19 @@
 
 <div th:remove="all">
     <!-- REMOVED IN PRODUCTION. This is for local testing because of cross-domain CORS rules -->
-    <script src="../../static/js/fluid/shaderSources.js" id="shader-source-js"></script>
-    <script src="../../static/js/fluid/controller.js" id="fluid-controller-js"></script>
+    <script id="fluid-controller-js" src="../../static/js/fluid/controller.js" defer></script>
+    <script id="shader-source-js" src="../../static/js/fluid/shaderSources.js" defer></script>
 </div>
+<script id="init-script">
+    const helperScriptCount = 3;
+    var helperScriptsLoaded = 0;
+    function pollForInit(name) {
+        if (++helperScriptsLoaded == helperScriptCount)
+            init();
+    }
+
+    document.getElementById("gl-matrix-js").addEventListener("load", () => pollForInit("gl-matrix"));
+    document.getElementById("shader-source-js").addEventListener("load", () => pollForInit("shader-source"));
+    document.getElementById("fluid-controller-js").addEventListener("load", () => pollForInit("fluid-controller"));
+</script>
 </html>
