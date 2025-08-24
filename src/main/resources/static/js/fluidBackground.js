@@ -1,1 +1,0 @@
-// Control script for the WebGL background goes here!
