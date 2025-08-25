@@ -112,7 +112,7 @@ function simStep(deltaT, texPrev, texNext) {
 
     // Specify we render to framebuffer/next state texture
     gl.bindFramebuffer(gl.FRAMEBUFFER, shaders.simFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNext);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNext, 0);
     gl.bindTexture(gl.TEXTURE_2D, texNext);
     gl.viewport(0, 0, curSimW, curSimH);
 
@@ -158,6 +158,11 @@ function simStep(deltaT, texPrev, texNext) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texPrev);
     gl.uniform1i(shaders.sim.uniformLocs.textureSampler, 0);
+
+    // Provide other simulation inputs
+    gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
+    gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
+    gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT);
 
     // Draw 'em!
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -210,7 +215,7 @@ function renderScene(texNext) {
 
     // Provide the newly generated sim state texture as input
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texNew);
+    gl.bindTexture(gl.TEXTURE_2D, texNext);
     gl.uniform1i(shaders.draw.uniformLocs.textureSampler, 0);
 
     // Draw 'em!
