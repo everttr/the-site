@@ -5,6 +5,8 @@
 //////////////////////////////////////////////////
 
 // Constants/Parameters
+const minCanvW = 128;
+const minCanvH = 128;
 const canvasScale = 0.5;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
@@ -36,10 +38,10 @@ var shaders = {
     simFB: null,
 }
 var enabled;
-var curCanvW;
-var curCanvH;
-var curSimW;
-var curSimH;
+var curCanvW = null;
+var curCanvH = null;
+var curSimW = null;
+var curSimH = null;
 var timeSim = -1; // ms it's been running
 var timePrev = new Date().getMilliseconds();
 var frameParity = 0;
@@ -51,13 +53,25 @@ var focused = true;
 ////////////////////////////////////////////////////
 
 // Helper functions for initialization/refreshing
+function nearestPowerOf2(n) {
+    // taken from: https://stackoverflow.com/a/42799104
+    return 1 << 32 - Math.clz32(n);
+}
 function pollResizeCanvas() {
     let desiredW = Math.max(
-        document.documentElement.clientWidth ?? 0,
-        window.innerWidth ?? 0) * canvasScale;
+        nearestPowerOf2(Math.ceil(Math.max(
+            document.documentElement.clientWidth ?? 0,
+            window.innerWidth ?? 0) * canvasScale)
+        ), minCanvW);
     let desiredH = Math.max(
-        document.documentElement.clientHeight ?? 0,
-        window.innerHeight ?? 0) * canvasScale;
+        nearestPowerOf2(
+            Math.ceil(Math.max(
+            document.documentElement.clientHeight ?? 0,
+            window.innerHeight ?? 0) * canvasScale)
+        ), minCanvH);
+    
+    // Round to nearest power of 2
+    Math.clz32()
 
     if (// Always refresh if not been sized yet
         curCanvW === undefined || curCanvH === undefined ||
@@ -65,16 +79,21 @@ function pollResizeCanvas() {
         (desiredW - curCanvW) / curCanvW > canvasResizeTolerance ||
         (desiredH - curCanvH) / curCanvH > canvasResizeTolerance)
     {
+        if (DEBUG_VERBOSITY >= 1)
+            console.log(`Trying to resize canvas from ${curCanvW}x${curCanvH} to ${desiredW}x${desiredH}`);
+
         refreshCanvas(desiredW, desiredH);
+        return true;
     }
+    return false;
 }
 function refreshCanvas(newWidth, newHeight) {
-    // Resize the simulation texture
-    createSimTextures(newWidth, newHeight);
-
     // Resize the canvas
     gl.canvas.width = newWidth;
     gl.canvas.height = newHeight;
+
+    // Resize the simulation texture
+    createSimTextures(newWidth, newHeight);
 
     // Update tracker values
     curCanvW = newWidth;
@@ -167,7 +186,7 @@ function simStep(deltaT, texPrev, texNext) {
     // Draw 'em!
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    if (DEBUG_VERBOSITY >= 1)
+    if (DEBUG_VERBOSITY >= 2)
         console.log(`Simulation updated with timestep ${deltaT}!`);
 }
 function renderScene(texNext) {
@@ -221,7 +240,7 @@ function renderScene(texNext) {
     // Draw 'em!
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    if (DEBUG_VERBOSITY >= 1)
+    if (DEBUG_VERBOSITY >= 2)
         console.log("Scene rendered!");
 }
 
@@ -234,10 +253,9 @@ function init() {
         initCanvas() &&
         initGL() &&
         initShaderPrograms() &&
-        initVertexBuffers();
-    if (enabled) {
+        initVertexBuffers() &&
         pollResizeCanvas();
-
+    if (enabled) {
         // Start render loop
         tryUpdateRepeating();
 
@@ -266,9 +284,8 @@ function init() {
             /* Implement me! */
         });
         // Possible resizing event
-        /* Implement me! */
-        document.documentElement.addEventListener("click", (event) => {
-            console.log("i printed it");
+        window.addEventListener("resize", (event) => {
+            pollResizeCanvas();
         });
     }
 }
@@ -312,11 +329,12 @@ function loadShader(name, type, source) {
     return s;
 }
 function initShaderPrograms() {
-    createShaderProgram("Fluid Simulation", shaders.sim,
+    let b1 = createShaderProgram("Fluid Simulation", shaders.sim,
         SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
         null, [["deltaTime", "uDeltaTime"], ["texWidth", "uTexWidth"], ["texHeight", "uTexHeight"]]);
-    createShaderProgram("Fluid Draw", shaders.draw,
+    let b2 = createShaderProgram("Fluid Draw", shaders.draw,
         SHADERSTR_FLUID_DRAW_VERT, SHADERSTR_FLUID_DRAW_FRAG);
+    return b1 && b2;
 }
 function createShaderProgram(name, storage, vertSource, fragSource,
     extraAttributes = null, extraUniforms = null)
@@ -374,6 +392,7 @@ function initVertexBuffers() {
         createVertexBuffer("Positions", [1., 1., -1., 1., 1., -1., -1., -1.]);
     shaders.vertexbuffers.textureCoord =
         createVertexBuffer("Texture Coordinates", [0., 0., 1., 0., 1., 1., 0., 1.]);
+    return shaders.vertexbuffers.positions != null && shaders.vertexbuffers.textureCoord != null;
 }
 function createVertexBuffer(name, data) {
     // Create vertex buffer for a very boring plane
@@ -398,12 +417,14 @@ function createSimTextures(resX, resY) {
     let a1 = gl.TEXTURE_2D; // target
     let a2 = 0; // mipmap level
     let a3 = gl.RGBA; // internalFormat
-    let a4 = rexX; // width
+    let a4 = resX; // width
     let a5 = resY; // height
     let a6 = 0; // border
     let a7 = gl.RGBA; // srcFormat
     let a8 = gl.UNSIGNED_BYTE; // srcType
-    let a9 = canvas; // pixel source (just copy what's already drawn on the canvas)
+    let a9 = //gl.canvas; // pixel source (just copy what's already drawn on the canvas)
+             null; // nvm, the overloads that accept HTML elements are those that don't rescale it...
+                   // providing no pixel source here makes Firefox give an erroneous warning, but whatever
     // Tex1
     shaders.simTex1 = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, shaders.simTex1);
@@ -426,7 +447,7 @@ function createSimTextures(resX, resY) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
     // Create the framebuffer to help in rendering to the texture
-    // (only create it if one not already created)
+    // (only create it if one not already created; doesn't need to be resized)
     if (shaders.simFB === null)
         shaders.simFB = gl.createFramebuffer();
 

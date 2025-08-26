@@ -42,7 +42,7 @@ uniform int uTexWidth;
 uniform int uTexHeight;
 uniform highp float uDeltaTime;
 
-const highp float BRIGHTNESS_TRANSITION_TIME = 8.0;
+const highp float LERP_STRENGTH = 2.0;
 
 void main() {
     // Sample
@@ -57,10 +57,12 @@ void main() {
     // (other sampled points not actually used at this point)
     // Just increase brightness over time to test
     // (the *0's are so I'm not yelled at for unused variables)
-    highp vec4 col = node_00 + node_n0 * 0.0 + node_0n * 0.0 + node_p0 * 0.0 + node_0p * 0.0;
-    highp float x = col.x;
-    x = min(1.0, x + uDeltaTime * BRIGHTNESS_TRANSITION_TIME);
-    col = vec4(x, x, x, 1.0);
+    highp vec4 ave = node_00 * 0.2 + node_n0 * 0.2 + node_0n * 0.2 + node_p0 * 0.2 + node_0p * 0.2;
+    highp vec4 col;
+    if (vST.x < 0.05 && vST.y <= 0.05)
+        col = vec4(1.0, 1.0, 1.0, 1.0);
+    else
+        col = mix(node_00, ave, uDeltaTime * LERP_STRENGTH);
     gl_FragColor = col;
 }
 `;
