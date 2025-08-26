@@ -59,7 +59,8 @@ void main() {
     // (the *0's are so I'm not yelled at for unused variables)
     highp vec4 ave = node_00 * 0.2 + node_n0 * 0.2 + node_0n * 0.2 + node_p0 * 0.2 + node_0p * 0.2;
     highp vec4 col;
-    if (vST.x < 0.05 && vST.y <= 0.05)
+    if (vST.x > 0.1 && vST.x < 0.2 &&
+        vST.y > 0.8 && vST.y < 0.9)
         col = vec4(1.0, 1.0, 1.0, 1.0);
     else
         col = mix(node_00, ave, uDeltaTime * LERP_STRENGTH);

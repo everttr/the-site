@@ -391,7 +391,7 @@ function initVertexBuffers() {
     shaders.vertexbuffers.positions =
         createVertexBuffer("Positions", [1., 1., -1., 1., 1., -1., -1., -1.]);
     shaders.vertexbuffers.textureCoord =
-        createVertexBuffer("Texture Coordinates", [0., 0., 1., 0., 1., 1., 0., 1.]);
+        createVertexBuffer("Texture Coordinates", [1., 1., 0., 1., 1., 0., 0., 0.]);
     return shaders.vertexbuffers.positions != null && shaders.vertexbuffers.textureCoord != null;
 }
 function createVertexBuffer(name, data) {
