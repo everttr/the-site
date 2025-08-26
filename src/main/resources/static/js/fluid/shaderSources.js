@@ -63,7 +63,10 @@ void main() {
         vST.y > 0.8 && vST.y < 0.9)
         col = vec4(1.0, 1.0, 1.0, 1.0);
     else
-        col = mix(node_00, ave, uDeltaTime * LERP_STRENGTH);
+    {
+        highp float x = max(node_n0.x, max(node_0n.x, max(node_00.x, max(node_p0.x, node_0p.x))));
+        col = vec4(x, x, x, 1.0);
+    }
     gl_FragColor = col;
 }
 `;
