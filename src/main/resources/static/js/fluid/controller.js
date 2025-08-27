@@ -10,7 +10,7 @@ const minCanvH = 128;
 const canvasScale = 1.0;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
-const DEBUG_VERBOSITY = 2;
+const DEBUG_VERBOSITY = 1;
 // Plain Globals
 var canvas;
 var gl;
@@ -43,7 +43,7 @@ var curCanvH = null;
 var curSimW = null;
 var curSimH = null;
 var timeSim = -1; // ms it's been running
-var timePrev = new Date().getMilliseconds();
+var timePrev = new Date().valueOf();
 var frameParity = 0;
 var lastTimeDelta;
 var curMousePos = null;
@@ -102,7 +102,7 @@ function refreshCanvas(newWidth, newHeight) {
     curCanvH = newHeight;
 }
 function tryUpdateRepeating(_ = null) {
-    timeCur = new Date().getMilliseconds();
+    timeCur = new Date().valueOf();
     timeDelta = timeCur - timePrev;
     timeSim += timeDelta;
     timePrev = timeCur;
@@ -287,7 +287,7 @@ function init() {
 
         // Focus/unfocus performance evetns
         window.addEventListener("focus", () => {
-            timePrev = new Date().getMilliseconds() - lastTimeDelta; // start counting from now!
+            timePrev = new Date().valueOf() - lastTimeDelta; // start counting from now!
             focused = true;
             // Also have to start the rendering loop back up again
             tryUpdateRepeating();
