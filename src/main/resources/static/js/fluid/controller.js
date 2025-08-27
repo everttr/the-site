@@ -7,10 +7,10 @@
 // Constants/Parameters
 const minCanvW = 128;
 const minCanvH = 128;
-const canvasScale = 0.5;
+const canvasScale = 1.0;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
-const DEBUG_VERBOSITY = 1;
+const DEBUG_VERBOSITY = 2;
 // Plain Globals
 var canvas;
 var gl;
@@ -46,6 +46,8 @@ var timeSim = -1; // ms it's been running
 var timePrev = new Date().getMilliseconds();
 var frameParity = 0;
 var lastTimeDelta;
+var curMousePos = null;
+var prevMousePos = null;
 var focused = true;
 
 ////////////////////////////////////////////////////
@@ -120,13 +122,26 @@ function updateSim(deltaT) {
     let texNext = frameParity === 0 ? shaders.simTex2 : shaders.simTex1;
     frameParity = frameParity === 0 ? 1 : 0;
 
+    // Calculate mouse parameters
+    let mouseStart = prevMousePos;
+    let mouseEnd = curMousePos;
+    let mouseDir = null;
+    let mouseMag = 0;
+    if (mouseStart != mouseEnd && mouseStart !== null && mouseEnd !== null) {
+        let dx = mouseEnd[0] - mouseStart[0];
+        let dy = mouseEnd[1] - mouseStart[1];
+        mouseMag = Math.sqrt(dx * dx + dy * dy);
+        mouseDir = [dx / mouseMag, dy / mouseMag];
+    }
+    prevMousePos = curMousePos;
+
     // Update the fluid simulation
-    simStep(deltaT, texPrev, texNext);
+    simStep(deltaT, texPrev, texNext, mouseStart, mouseDir, mouseMag);
 
     // Then render the changes
     renderScene(texNext);
 }
-function simStep(deltaT, texPrev, texNext) {
+function simStep(deltaT, texPrev, texNext, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders
 
     // Specify we render to framebuffer/next state texture
@@ -177,6 +192,17 @@ function simStep(deltaT, texPrev, texNext) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texPrev);
     gl.uniform1i(shaders.sim.uniformLocs.textureSampler, 0);
+
+    // Provide the user mouse input
+    if (mouseStart === null || mouseDir === null) {
+        gl.uniform2f(shaders.sim.uniformLocs.mouseStart, 0, 0);
+        gl.uniform2f(shaders.sim.uniformLocs.mouseEnd, 0, 0);
+        gl.uniform1f(shaders.sim.uniformLocs.mouseMag, 0);
+    } else {
+        gl.uniform2f(shaders.sim.uniformLocs.mouseStart, mouseStart[0], mouseStart[1]);
+        gl.uniform2f(shaders.sim.uniformLocs.mouseDir, mouseDir[0], mouseDir[1]);
+        gl.uniform1f(shaders.sim.uniformLocs.mouseMag, mouseMag);
+    }
 
     // Provide other simulation inputs
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
@@ -280,8 +306,9 @@ function init() {
             if (x < canvRect.left || x > canvRect.right ||
                 y < canvRect.top || y > canvRect.bottom)
                 return;
-            // Make waves!
-            /* Implement me! */
+            // Store mouse pos relative to canvas
+            // Simulation will make waves with this
+            curMousePos = [(x - canvRect.x) / canvRect.width, 1.0 - (y - canvRect.y) / canvRect.height];
         });
         // Possible resizing event
         window.addEventListener("resize", (event) => {
@@ -331,7 +358,14 @@ function loadShader(name, type, source) {
 function initShaderPrograms() {
     let b1 = createShaderProgram("Fluid Simulation", shaders.sim,
         SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
-        null, [["deltaTime", "uDeltaTime"], ["texWidth", "uTexWidth"], ["texHeight", "uTexHeight"]]);
+        null, [
+            ["deltaTime", "uDeltaTime"],
+            ["texWidth", "uTexWidth"],
+            ["texHeight", "uTexHeight"],
+            ["mouseStart", "uMouseStart"],
+            ["mouseDir", "uMouseDir"],
+            ["mouseMag", "uMouseMag"],
+        ]);
     let b2 = createShaderProgram("Fluid Draw", shaders.draw,
         SHADERSTR_FLUID_DRAW_VERT, SHADERSTR_FLUID_DRAW_FRAG);
     return b1 && b2;
@@ -389,9 +423,9 @@ function createShaderProgram(name, storage, vertSource, fragSource,
 }
 function initVertexBuffers() {
     shaders.vertexbuffers.positions =
-        createVertexBuffer("Positions", [1., 1., -1., 1., 1., -1., -1., -1.]);
+        createVertexBuffer("Positions", [-1., -1., -1., 1., 1., -1., 1., 1.]);
     shaders.vertexbuffers.textureCoord =
-        createVertexBuffer("Texture Coordinates", [1., 1., 0., 1., 1., 0., 0., 0.]);
+        createVertexBuffer("Texture Coordinates", [0., 0., 0., 1., 1., 0., 1., 1.]);
     return shaders.vertexbuffers.positions != null && shaders.vertexbuffers.textureCoord != null;
 }
 function createVertexBuffer(name, data) {
@@ -456,5 +490,5 @@ function createSimTextures(resX, resY) {
     curSimH = resY;
 
     if (DEBUG_VERBOSITY >= 1)
-        console.log(`Simulation texture/framebuffer of resolution ${resX}x${resY} created`);
+        console.log(`Simulation textures of resolution ${resX}x${resY} created`);
 }
