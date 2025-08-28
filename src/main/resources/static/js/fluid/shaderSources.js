@@ -1,5 +1,53 @@
-// Global enables/disables for debugging purposes
-var FORCE_ONE_CHANNEL_ENCODING = false;
+/////////////////////////////////////////////////////
+/*          ~~~ Globals for Debugging ~~~          */
+/////////////////////////////////////////////////////
+// Helpers to encode higher precision floats into the frame buffer.
+// A bit hacky, but it'll have to work.
+let FORCE_ONE_CHANNEL_ENCODING = false;
+let CHANNEL_ENCODING_MACROS = `
+${FORCE_ONE_CHANNEL_ENCODING ? "#define ONE_CHANNEL_ENCODING" : ""}
+#define C4 16581375.0
+#define C4i (1.0 / C4)
+#define C3 65025.0
+#define C3i (1.0 / C3)
+#define C2 255.0
+#define C2i (1.0 / C2)`
+let CHANNEL_DECODING_HELPER = `
+highp float from(highp vec4 v) {
+#ifndef ONE_CHANNEL_ENCODING
+    return
+        (v.r) +
+        (v.g * C2i);// +
+        // (v.b * C3i) +
+        // (v.a * C4i);
+#else
+    return v.x;
+#endif
+}`;
+let CHANNEL_ENCODING_HELPER = `
+highp vec4 to(highp float f) {
+#ifndef ONE_CHANNEL_ENCODING
+    highp float t;
+    highp vec4 v = vec4(0.0, 0.0, 0.0, 0.0);
+    // // channel 4 (least significant)
+    // t = mod(f, C4i);
+    // f -= t;
+    // v.a = t * C4;
+    // // channel 3
+    // t = mod(f, C3i);
+    // f -= t;
+    // v.b = t * C3;
+    // channel 2
+    t = mod(f, C2i);
+    f -= t;
+    v.g = t * C2;
+    // channel 1 (most significant)
+    v.r = f;
+    return v;
+#else
+    return vec4(f, f, f, 1.0);
+#endif
+}`;
 
 /////////////////////////////////////////////
 /*          ~~~ Vertex Shader ~~~          */
@@ -54,51 +102,14 @@ const highp float MOUSE_MAX_DIST = 0.005;
 const highp float MOUSE_STRENGTH = 1.0;
 const highp float MOUSE_FALLOFF_EXP = 1.25;
 
-#define DISABLE_ROUNDED_CORNERS
-${FORCE_ONE_CHANNEL_ENCODING ? "#define ONE_CHANNEL_ENCODING" : ""}
-#define C4 16581375.0
-#define C4i (1.0 / C4)
-#define C3 65025.0
-#define C3i (1.0 / C3)
-#define C2 255.0
-#define C2i (1.0 / C2)
+const highp float sqrt2 = 1.41421356237;
+const highp float sqrt2i = 1.0 / sqrt2;
 
-// Helpers to encode higher precision floats into the frame buffer.
-// A bit hacky, but it'll have to work.
-highp float from(highp vec4 v) {
-#ifndef ONE_CHANNEL_ENCODING
-    return
-        (v.r) +
-        (v.g * C2i) +
-        (v.b * C3i) +
-        (v.a * C4i);
-#else
-    return v.x;
-#endif
-}
-highp vec4 to(highp float f) {
-#ifndef ONE_CHANNEL_ENCODING
-    highp float t;
-    highp vec4 v = vec4(0.0, 0.0, 0.0, 0.0);
-    // channel 4 (least significant)
-    t = mod(f, C4i);
-    f -= t;
-    v.a = t * C4;
-    // channel 3
-    t = mod(f, C3i);
-    f -= t;
-    v.b = t * C3;
-    // channel 2
-    t = mod(f, C2i);
-    f -= t;
-    v.g = t * C2;
-    // channel 1 (most significant)
-    v.r = f;
-    return v;
-#else
-    return vec4(f, f, f, 1.0);
-#endif
-}
+#define DISABLE_ROUNDED_CORNERS
+//#define USE_AVE_SPREADING
+${CHANNEL_ENCODING_MACROS}
+${CHANNEL_DECODING_HELPER}
+${CHANNEL_ENCODING_HELPER}
 
 void main() {
     // Get proximity to mouse (capsule-shaped influence)
@@ -123,17 +134,34 @@ void main() {
     // Sample neighbouring pixels
     // (n is -1, p is +1)
     // ((clipping isn't a problem b/c of wrapping))
-    highp float node_n0 = from(texture2D(uTex, vST + vec2(-1.0 / float(uTexWidth), 0.0)));
-    highp float node_0n = from(texture2D(uTex, vST + vec2(0.0, -1.0 / float(uTexHeight))));
+    highp float w = -1.0 / float(uTexWidth);
+    highp float h = -1.0 / float(uTexHeight);
+    // bottom row
+    highp float node_nn = from(texture2D(uTex, vST + vec2(-w, -h)));
+    highp float node_0n = from(texture2D(uTex, vST + vec2(0.0, -h)));
+    highp float node_pn = from(texture2D(uTex, vST + vec2(w, -h)));
+    // middle row
+    highp float node_n0 = from(texture2D(uTex, vST + vec2(-w, 0.0)));
     highp float node_00 = from(texture2D(uTex, vST));
-    highp float node_p0 = from(texture2D(uTex, vST + vec2(1.0 / float(uTexWidth), 0.0)));
-    highp float node_0p = from(texture2D(uTex, vST + vec2(0.0, 1.0 / float(uTexHeight))));
+    highp float node_p0 = from(texture2D(uTex, vST + vec2(w, 0.0)));
+    // top row
+    highp float node_np = from(texture2D(uTex, vST + vec2(-w, h)));
+    highp float node_0p = from(texture2D(uTex, vST + vec2(0.0, h)));
+    highp float node_pp = from(texture2D(uTex, vST + vec2(w, h)));
 
     // (other sampled points not actually used at this point)
     // Just increase brightness over time to test
     // (the *0's are so I'm not yelled at for unused variables)
-    // highp float ave = node_00 * 0.2 + node_n0 * 0.2 + node_0n * 0.2 + node_p0 * 0.2 + node_0p * 0.2;
-    highp float target = max(node_n0, max(node_0n, max(node_00, max(node_p0, node_0p))));
+    highp float target =
+#ifdef USE_AVE_SPREADING
+       (node_nn * sqrt2i + node_0n + node_pn * sqrt2i +
+        node_n0          + node_00 + node_p0 +
+        node_np * sqrt2i + node_0p + node_pp * sqrt2i) / 9.0;
+#else
+        max(node_nn * sqrt2i, max(node_0n, max(node_pn * sqrt2i,
+        max(node_n0,          max(node_00, max(node_p0,
+        max(node_np * sqrt2i, max(node_0p,     node_pp * sqrt2i))))))));
+#endif
     highp float cur = node_00;
     cur = mix(cur, target, LERP_STRENGTH * uDeltaTime);
     cur = min(1.0, cur + mouseInfluence);
@@ -149,27 +177,8 @@ uniform sampler2D uTex;
 const mediump vec4 LOW_COL = vec4(0.18, 0.2, 0.275, 1.0);
 const mediump vec4 HIGH_COL = vec4(0.3, 0.55, 1.0, 1.0);
 
-${FORCE_ONE_CHANNEL_ENCODING ? "#define ONE_CHANNEL_ENCODING" : ""}
-#define C4 16581375.0
-#define C4i (1.0 / C4)
-#define C3 65025.0
-#define C3i (1.0 / C3)
-#define C2 255.0
-#define C2i (1.0 / C2)
-
-// Helpers to encode higher precision floats into the frame buffer.
-// A bit hacky, but it'll have to work.
-mediump float from(mediump vec4 v) {
-#ifndef ONE_CHANNEL_ENCODING
-    return
-        (v.r) +
-        (v.g * C2i) +
-        (v.b * C3i) +
-        (v.a * C4i);
-#else
-    return v.x;
-#endif
-}
+${CHANNEL_ENCODING_MACROS}
+${CHANNEL_DECODING_HELPER}
 
 void main() {
     // DEBUG RENDERING is just interpolating between two colors while I make sure the sim itself works
