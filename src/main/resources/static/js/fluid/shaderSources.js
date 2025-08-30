@@ -98,8 +98,8 @@ uniform highp vec2 uMouseStart;
 uniform highp vec2 uMouseDir;
 uniform highp float uMouseMag;
 
-const highp float LERP_STRENGTH = 10.0;
-const highp float MOUSE_MAX_DIST = 0.005;
+const highp float LERP_STRENGTH = 5.0;
+const highp float MOUSE_MAX_DIST = 0.015;
 const highp float MOUSE_STRENGTH = 1.0;
 const highp float MOUSE_FALLOFF_EXP = 1.25;
 
@@ -137,27 +137,39 @@ void main() {
     highp float w = -1.0 / float(uTexWidth);
     highp float h = -1.0 / float(uTexHeight);
     // bottom row
-    highp vec2 node_nn = from(texture2D(uTex, vST + vec2(-w, -h)));
-    highp vec2 node_0n = from(texture2D(uTex, vST + vec2(0.0, -h)));
-    highp vec2 node_pn = from(texture2D(uTex, vST + vec2(w, -h)));
+    highp vec2 val_nn = from(texture2D(uTex, vST + vec2(-w, -h)));
+    highp vec2 val_0n = from(texture2D(uTex, vST + vec2(0.0, -h)));
+    highp vec2 val_pn = from(texture2D(uTex, vST + vec2(w, -h)));
     // middle row
-    highp vec2 node_n0 = from(texture2D(uTex, vST + vec2(-w, 0.0)));
-    highp vec2 node_00 = from(texture2D(uTex, vST));
-    highp vec2 node_p0 = from(texture2D(uTex, vST + vec2(w, 0.0)));
+    highp vec2 val_n0 = from(texture2D(uTex, vST + vec2(-w, 0.0)));
+    highp vec2 val_00 = from(texture2D(uTex, vST));
+    highp vec2 val_p0 = from(texture2D(uTex, vST + vec2(w, 0.0)));
     // top row
-    highp vec2 node_np = from(texture2D(uTex, vST + vec2(-w, h)));
-    highp vec2 node_0p = from(texture2D(uTex, vST + vec2(0.0, h)));
-    highp vec2 node_pp = from(texture2D(uTex, vST + vec2(w, h)));
+    highp vec2 val_np = from(texture2D(uTex, vST + vec2(-w, h)));
+    highp vec2 val_0p = from(texture2D(uTex, vST + vec2(0.0, h)));
+    highp vec2 val_pp = from(texture2D(uTex, vST + vec2(w, h)));
 
     // Perform dot products on the relative positions of sampled pixels
-    // (Implement me!)
+    // to get how much fluid they extract from/give to this pixel
+    // bottom row
+    val_nn = normalize(val_nn) * dot(vec2(-sqrt2, -sqrt2), val_nn);
+    val_0n = normalize(val_0n) * -val_0n.y;
+    val_pn = normalize(val_pn) * dot(vec2( sqrt2, -sqrt2), val_pn);
+    // middle row
+    val_n0 = normalize(val_n0) * -val_n0.x;
+    // (current vector is already trying to extract)
+    val_p0 = normalize(val_p0) *  val_p0.x;
+    // top row
+    val_np = normalize(val_np) * dot(vec2(-sqrt2, sqrt2), val_np);
+    val_0p = normalize(val_0p) * val_0p.y;
+    val_pp = normalize(val_pp) * dot(vec2( sqrt2, sqrt2), val_pp);
 
-    // Average this node with others around it
+    // Animate this pixel's velocity with what others around it wants it to do
     highp vec2 target =
-       (node_nn * sqrt2i + node_0n + node_pn * sqrt2i +
-        node_n0          +           node_p0 +
-        node_np * sqrt2i + node_0p + node_pp * sqrt2i) / 8.0;
-    highp vec2 cur = node_00;
+        val_nn + val_0n + val_pn +
+        val_n0 + val_00 + val_p0 +
+        val_np + val_0p + val_pp;
+    highp vec2 cur = val_00;
     cur = mix(cur, target, LERP_STRENGTH * uDeltaTime);
 
     // Add in the mouse movement

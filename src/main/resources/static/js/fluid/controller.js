@@ -303,9 +303,9 @@ function init() {
             let x = event.clientX;
             let y = event.clientY;
             let canvRect = canvas.getBoundingClientRect();
-            if (x < canvRect.left || x > canvRect.right ||
-                y < canvRect.top || y > canvRect.bottom)
-                return;
+            // if (x < canvRect.left || x > canvRect.right ||
+            //     y < canvRect.top || y > canvRect.bottom)
+            //     return;
             // Store mouse pos relative to canvas
             // Simulation will make waves with this
             curMousePos = [(x - canvRect.x) / canvRect.width, 1.0 - (y - canvRect.y) / canvRect.height];
