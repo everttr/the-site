@@ -184,8 +184,14 @@ varying highp vec2 vST;
 
 uniform sampler2D uTex;
 
-const mediump vec4 LOW_COL = vec4(0.18, 0.2, 0.275, 1.0);
-const mediump vec4 HIGH_COL = vec4(0.3, 0.55, 1.0, 1.0);
+const mediump vec4 COL = vec4(0.275, 0.573, 0.988, 1.0);
+
+const mediump float UPRIGHTNESS = 0.2; // how much the normals tend upwards
+
+const mediump vec3  LIGHT_DIR = normalize(vec3(-0.2, 0.4, -1.0));
+const mediump float LIGHT_MIN = 0.1;
+const mediump float LIGHT_MAX = 1.0;
+const mediump float LIGHT_DIF = LIGHT_MAX - LIGHT_MIN;
 
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPER}
@@ -193,10 +199,14 @@ ${CHANNEL_DECODING_HELPER}
 void main() {
     // Get movement of fluid at fragment
     mediump vec2 mov = from(texture2D(uTex, vST));
-    
-    // Change color based on speed of fluid
-    mediump float x = length(mov);
 
-    gl_FragColor = LOW_COL * (1.0 - x) + HIGH_COL * x;
+    // Create a normal of the fluid's surface
+    mediump vec3 n = normalize(vec3(mov.x, mov.y, UPRIGHTNESS));
+
+    // Calculate lighting
+    mediump float l = max(0.0, dot(-LIGHT_DIR, n));
+    l = l * LIGHT_DIF + LIGHT_MIN;
+
+    gl_FragColor = COL * l;
 }
 `;
