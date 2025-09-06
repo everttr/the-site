@@ -99,6 +99,8 @@ uniform highp vec2 uMouseDir;
 uniform highp float uMouseMag;
 
 const highp float LERP_STRENGTH = 5.0;
+const highp float DRAG_STRENGTH = 1.75;
+
 const highp float MOUSE_MAX_DIST = 0.015;
 const highp float MOUSE_STRENGTH = 1.0;
 const highp float MOUSE_FALLOFF_EXP = 1.25;
@@ -166,11 +168,18 @@ void main() {
 
     // Animate this pixel's velocity with what others around it wants it to do
     highp vec2 target =
-        val_nn + val_0n + val_pn +
-        val_n0 + val_00 + val_p0 +
-        val_np + val_0p + val_pp;
+        val_nn * sqrt2i + val_0n * 0.5 + val_pn * sqrt2i +
+        val_n0 * 0.5    + val_00       + val_p0 * 0.5 +
+        val_np * sqrt2i + val_0p * 0.5 + val_pp * sqrt2i;
+    target = vec2(
+        min(1.0, max(-1.0, target.x)),
+        min(1.0, max(-1.0, target.y))
+        );
     highp vec2 cur = val_00;
-    cur = mix(cur, target, LERP_STRENGTH * uDeltaTime);
+    cur = mix(cur, target, min(LERP_STRENGTH * uDeltaTime, 1.0));
+
+    // Apply some slowdown
+    cur = mix(cur, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
 
     // Add in the mouse movement
     cur += uMouseDir * mouseInfluence;
@@ -183,6 +192,8 @@ const SHADERSTR_FLUID_DRAW_FRAG = `
 varying highp vec2 vST;
 
 uniform sampler2D uTex;
+uniform int uTexWidth;
+uniform int uTexHeight;
 
 const mediump vec4 COL = vec4(0.275, 0.573, 0.988, 1.0);
 
@@ -197,16 +208,40 @@ ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPER}
 
 void main() {
-    // Get movement of fluid at fragment
-    mediump vec2 mov = from(texture2D(uTex, vST));
+    // Sample neighbouring pixels
+    // (n is -1, p is +1)
+    // ((clipping isn't a problem b/c of wrapping))
+    mediump float w = -1.0 / float(uTexWidth);
+    mediump float h = -1.0 / float(uTexHeight);
+    // bottom row
+    mediump vec2 val_nn = from(texture2D(uTex, vST + vec2(-w, -h)));
+    mediump vec2 val_0n = from(texture2D(uTex, vST + vec2(0.0, -h)));
+    mediump vec2 val_pn = from(texture2D(uTex, vST + vec2(w, -h)));
+    // middle row
+    mediump vec2 val_n0 = from(texture2D(uTex, vST + vec2(-w, 0.0)));
+    mediump vec2 val_00 = from(texture2D(uTex, vST));
+    mediump vec2 val_p0 = from(texture2D(uTex, vST + vec2(w, 0.0)));
+    // top row
+    mediump vec2 val_np = from(texture2D(uTex, vST + vec2(-w, h)));
+    mediump vec2 val_0p = from(texture2D(uTex, vST + vec2(0.0, h)));
+    mediump vec2 val_pp = from(texture2D(uTex, vST + vec2(w, h)));
+
+    // Average out those samples
+    val_00 =
+        (val_nn + val_0n + val_pn +
+         val_n0 + val_00 + val_p0 +
+         val_np + val_0p + val_pp) / 9.0;
 
     // Create a normal of the fluid's surface
-    mediump vec3 n = normalize(vec3(mov.x, mov.y, UPRIGHTNESS));
+    mediump vec3 n = normalize(vec3(val_00.x, val_00.y, UPRIGHTNESS));
 
     // Calculate lighting
     mediump float l = max(0.0, dot(-LIGHT_DIR, n));
     l = l * LIGHT_DIF + LIGHT_MIN;
 
     gl_FragColor = COL * l;
+
+    // mediump vec2 mov = from(texture2D(uTex, vST));
+    // gl_FragColor = vec4(mov.x * 0.25 + 0.5, mov.y * 0.25 + 0.5, 1.0, 1.0);
 }
 `;

@@ -262,6 +262,10 @@ function renderScene(texNext) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texNext);
     gl.uniform1i(shaders.draw.uniformLocs.textureSampler, 0);
+    
+    // Other simulation inputs
+    gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
+    gl.uniform1i(shaders.draw.uniformLocs.texHeight, curSimH);
 
     // Draw 'em!
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -360,8 +364,6 @@ function initShaderPrograms() {
         SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
         null, [
             ["deltaTime", "uDeltaTime"],
-            ["texWidth", "uTexWidth"],
-            ["texHeight", "uTexHeight"],
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
             ["mouseMag", "uMouseMag"],
@@ -406,6 +408,8 @@ function createShaderProgram(name, storage, vertSource, fragSource,
         projectionMatrix: gl.getUniformLocation(program, "uProjectionMatrix"),
         modelViewMatrix:  gl.getUniformLocation(program, "uModelViewMatrix"),
         textureSampler:   gl.getUniformLocation(program, "uTex"),
+        texWidth: gl.getUniformLocation(program, "uTexWidth"),
+        texHeight: gl.getUniformLocation(program, "uTexHeight"),
     };
     if (extraUniforms !== null) {
         extraUniforms.forEach(u => {
