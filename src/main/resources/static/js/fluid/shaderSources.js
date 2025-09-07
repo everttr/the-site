@@ -72,17 +72,17 @@ highp vec4 toD(highp float i) {
     return o;
 }`;
 
-/////////////////////////////////////////////
-/*          ~~~ Vertex Shader ~~~          */
-/////////////////////////////////////////////
-const SHADERSTR_FLUID_SIM_VERT = `
-attribute vec4 aVertexPosition;
-attribute vec2 aTextureCoord;
+//////////////////////////////////////////////
+/*          ~~~ Vertex Shaders ~~~          */
+//////////////////////////////////////////////
+const SHADERSTR_FLUID_SIM_VERT = `#version 300 es
+in vec4 aVertexPosition;
+in vec2 aTextureCoord;
 
 uniform mat4 uModelViewMatrix;
 uniform mat4 uProjectionMatrix;
 
-varying highp vec2 vST;
+out highp vec2 vST;
 
 void main() {
     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
@@ -90,14 +90,14 @@ void main() {
 }
 `;
 
-const SHADERSTR_FLUID_DRAW_VERT = `
-attribute vec4 aVertexPosition;
-attribute vec2 aTextureCoord;
+const SHADERSTR_FLUID_DRAW_VERT = `#version 300 es
+in vec4 aVertexPosition;
+in vec2 aTextureCoord;
 
 uniform mat4 uModelViewMatrix;
 uniform mat4 uProjectionMatrix;
 
-varying highp vec2 vST;
+out highp vec2 vST;
 
 void main() {
     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
@@ -105,13 +105,15 @@ void main() {
 }
 `;
 
-///////////////////////////////////////////////
-/*          ~~~ Fragment Shader ~~~          */
-///////////////////////////////////////////////
-const SHADERSTR_FLUID_SIM_FRAG = `
-varying highp vec2 vST;
+////////////////////////////////////////////////
+/*          ~~~ Fragment Shaders ~~~          */
+////////////////////////////////////////////////
+const SHADERSTR_FLUID_SIM_FRAG = `#version 300 es
+layout(location = 0) out highp vec4 outVelocity;
+layout(location = 1) out highp vec4 outDensity;
 
-uniform bool uDensitySwitch;
+in highp vec2 vST;
+
 uniform bool uInitializeFields;
 
 uniform sampler2D uTexV;
@@ -163,7 +165,7 @@ highp vec2 velocity() {
     mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * MOUSE_STRENGTH;
 
     // Get existing velocity
-    highp vec2 new = fromV(texture2D(uTexV, vST));
+    highp vec2 new = fromV(texture(uTexV, vST));
 
     // (no velocity movement yet, right now we're just testing)
     // Implement me!
@@ -181,18 +183,18 @@ highp float density() {
     // Sample current pixel & find where we will source our fluid from
     highp float w = float(uTexWidth);
     highp float h = float(uTexHeight);
-    highp vec2 move_delta = fromV(texture2D(uTexV, vST)) * uDeltaTime * vec2(w, h);
-    highp float d_cur = fromD(texture2D(uTexV, vST));
+    highp vec2 move_delta = fromV(texture(uTexV, vST)) * uDeltaTime * vec2(w, h);
+    highp float d_cur = fromD(texture(uTexV, vST));
 
     // Get density around current for diffusion
     // (n is -1, p is +1)
     // ((clipping isn't a problem b/c of wrapping))
     w = -1.0 / w;
     h = -1.0 / h;
-    highp float c_0n = fromD(texture2D(uTexD, vST + vec2(0.0, -h)));
-    highp float c_n0 = fromD(texture2D(uTexD, vST + vec2(-w, 0.0)));
-    highp float c_p0 = fromD(texture2D(uTexD, vST + vec2(w, 0.0)));
-    highp float c_0p = fromD(texture2D(uTexD, vST + vec2(0.0, h)));
+    highp float c_0n = fromD(texture(uTexD, vST + vec2(0.0, -h)));
+    highp float c_n0 = fromD(texture(uTexD, vST + vec2(-w, 0.0)));
+    highp float c_p0 = fromD(texture(uTexD, vST + vec2(w, 0.0)));
+    highp float c_0p = fromD(texture(uTexD, vST + vec2(0.0, h)));
 
     d_cur += DIFFUSION * (c_0n + c_n0 + c_p0 + c_0p- 4.0 * d_cur);
     // (no smoothing or anything here for the time being)
@@ -200,22 +202,23 @@ highp float density() {
 
     // Get density around sample for advection
     // Interpolation is already done for us!
-    d_cur = fromD(texture2D(uTexD, vST + move_delta));
+    d_cur = fromD(texture(uTexD, vST + move_delta));
 
     return uInitializeFields ? INIT_DENSITY : d_cur;
 }
 
 void main() {
-    // I WILL separate out these operations... I KNOW that branching is fake, you don't need to REMIND me!
-    // Implement me!
-    gl_FragColor = uDensitySwitch ? toD(density()) : toV(velocity());
-}
-`;
+    outVelocity = toV(velocity());
+    outDensity = toD(density());
+}`;
 
-const SHADERSTR_FLUID_DRAW_FRAG = `
-varying highp vec2 vST;
+const SHADERSTR_FLUID_DRAW_FRAG = `#version 300 es
+layout(location = 0) out mediump vec4 outColor;
 
-uniform sampler2D uTex;
+in mediump vec2 vST;
+
+uniform sampler2D uTexV;
+uniform sampler2D uTexD;
 uniform int uTexWidth;
 uniform int uTexHeight;
 
@@ -233,8 +236,8 @@ ${CHANNEL_DECODING_HELPERS}
 
 void main() {
     // Sample simulation at pixel
-    mediump vec2 vel = fromV(texture2D(uTex, vST));
-    mediump float density = fromD(texture2D(uTex, vST));
+    mediump vec2 vel = fromV(texture(uTexV, vST));
+    mediump float density = fromD(texture(uTexD, vST));
 
     // Create a normal of the fluid's surface
     mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
@@ -243,9 +246,8 @@ void main() {
     mediump float l = max(0.0, dot(-LIGHT_DIR, n));
     l = l * LIGHT_DIF + LIGHT_MIN;
 
-    gl_FragColor = COL * l * (density * 0.1 * 0.65 + 0.35);
+    outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
-    // mediump vec2 mov = from(texture2D(uTex, vST));
-    // gl_FragColor = vec4(mov.x * 0.25 + 0.5, mov.y * 0.25 + 0.5, 1.0, 1.0);
-}
-`;
+    // mediump vec2 mov = from(texture(uTex, vST));
+    // outColor = vec4(mov.x * 0.25 + 0.5, mov.y * 0.25 + 0.5, 1.0, 1.0);
+}`;

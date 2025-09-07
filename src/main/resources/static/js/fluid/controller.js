@@ -156,6 +156,21 @@ function updateSim(deltaT) {
 function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders
 
+    // Specify we render to framebuffer/next sim textures
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, shaders.simFB);
+    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextV, 0);
+    gl.bindTexture(gl.TEXTURE_2D, texNextV);
+    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, texNextD, 0);
+    gl.bindTexture(gl.TEXTURE_2D, texNextD);
+    gl.viewport(0, 0, curSimW, curSimH);
+
+    // Clear framebuffer
+    gl.clearColor(0, 0, 0, 1);
+    gl.clearDepth(1.);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
     // Specify program to render with
     gl.useProgram(shaders.sim.program);
 
@@ -212,40 +227,7 @@ function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mou
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT);
     gl.uniform1f(shaders.sim.uniformLocs.firstRender, firstRender);
 
-    // Specify we render to framebuffer/next velocity texture
-    gl.bindFramebuffer(gl.FRAMEBUFFER, shaders.simFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextV, 0);
-    gl.bindTexture(gl.TEXTURE_2D, texNextV);
-    gl.viewport(0, 0, curSimW, curSimH);
-    // Clear framebuffer
-    gl.clearColor(0, 0, 0, 1);
-    gl.clearDepth(1.);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    // Enable velocity rendering
-    gl.uniform1f(shaders.sim.uniformLocs.densitySwitch, false);
-
-    // Update velocity
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-    // Specify we render to framebuffer/next density texture
-    gl.bindFramebuffer(gl.FRAMEBUFFER, shaders.simFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextD, 0);
-    gl.bindTexture(gl.TEXTURE_2D, texNextD);
-    gl.viewport(0, 0, curSimW, curSimH);
-    // Clear framebuffer
-    gl.clearColor(0, 0, 0, 1);
-    gl.clearDepth(1.);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    // Enable density rendering
-    gl.uniform1f(shaders.sim.uniformLocs.densitySwitch, true);
-
-    // Update density
+    // Update sim
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // No longer the first render
@@ -256,7 +238,7 @@ function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mou
 }
 function renderScene(texNextV, texNextD) {
     // Unbind framebuffer from simulation -- render to the canvas!
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
     // Clear all existing fragments
@@ -300,10 +282,10 @@ function renderScene(texNextV, texNextD) {
     // Provide the newly generated sim state texture as input
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texNextV);
-    gl.uniform1i(shaders.sim.uniformLocs.velocitySampler, 0);
+    gl.uniform1i(shaders.draw.uniformLocs.velocitySampler, 0);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, texNextD);
-    gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
+    gl.uniform1i(shaders.draw.uniformLocs.densitySampler, 1);
     
     // Other simulation inputs
     gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
@@ -378,7 +360,7 @@ function initCanvas() {
     return true;
 }
 function initGL() {
-    gl = canvas.getContext("webgl");
+    gl = canvas.getContext("webgl2");
     if (gl === null) {
         console.warn("WebGL initialization failed. The background is supposed to have some portfolio-worthy shader action going on...");
         // // Just draw a plain color instead
@@ -416,7 +398,6 @@ function initShaderPrograms() {
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
             ["mouseMag", "uMouseMag"],
-            ["densitySwitch", "uDensitySwitch"],
             ["firstRender", "uInitializeFields"]
         ]);
     let b2 = createShaderProgram("Fluid Draw", shaders.draw,
