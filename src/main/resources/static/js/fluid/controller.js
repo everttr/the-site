@@ -10,7 +10,7 @@ const minCanvH = 128;
 const canvasScale = 1.0;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
-const DEBUG_VERBOSITY = 1;
+const DEBUG_VERBOSITY = 2;
 // Plain Globals
 var canvas;
 var gl;
@@ -33,8 +33,10 @@ var shaders = {
         positions: null,
         st: null,
     },
-    simTex1: null,
-    simTex2: null,
+    simTexV1: null,
+    simTexV2: null,
+    simTexD1: null,
+    simTexD2: null,
     simFB: null,
 }
 var enabled;
@@ -45,6 +47,7 @@ var curSimH = null;
 var timeSim = -1; // ms it's been running
 var timePrev = new Date().valueOf();
 var frameParity = 0;
+var firstRender = true;
 var lastTimeDelta;
 var curMousePos = null;
 var prevMousePos = null;
@@ -71,9 +74,6 @@ function pollResizeCanvas() {
             document.documentElement.clientHeight ?? 0,
             window.innerHeight ?? 0) * canvasScale)
         ), minCanvH);
-    
-    // Round to nearest power of 2
-    Math.clz32()
 
     if (// Always refresh if not been sized yet
         curCanvW === undefined || curCanvH === undefined ||
@@ -118,9 +118,21 @@ function tryUpdateRepeating(_ = null) {
 }
 function updateSim(deltaT) {
     // Sim textures alternate between input & output
-    let texPrev  = frameParity === 0 ? shaders.simTex1 : shaders.simTex2;
-    let texNext = frameParity === 0 ? shaders.simTex2 : shaders.simTex1;
-    frameParity = frameParity === 0 ? 1 : 0;
+    let texPrevV;
+    let texPrevD;
+    if (frameParity === 0) {
+        texPrevV = shaders.simTexV1;
+        texNextV = shaders.simTexV2;
+        texPrevD = shaders.simTexD1;
+        texNextD = shaders.simTexD2;
+        frameParity = 1;
+    } else {
+        texPrevV = shaders.simTexV2;
+        texNextV = shaders.simTexV1;
+        texPrevD = shaders.simTexD2;
+        texNextD = shaders.simTexD1;
+        frameParity = 0;
+    }
 
     // Calculate mouse parameters
     let mouseStart = prevMousePos;
@@ -136,26 +148,13 @@ function updateSim(deltaT) {
     prevMousePos = curMousePos;
 
     // Update the fluid simulation
-    simStep(deltaT, texPrev, texNext, mouseStart, mouseDir, mouseMag);
+    simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mouseDir, mouseMag);
 
     // Then render the changes
-    renderScene(texNext);
+    renderScene(texNextV, texNextD);
 }
-function simStep(deltaT, texPrev, texNext, mouseStart, mouseDir, mouseMag) {
+function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders
-
-    // Specify we render to framebuffer/next state texture
-    gl.bindFramebuffer(gl.FRAMEBUFFER, shaders.simFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNext, 0);
-    gl.bindTexture(gl.TEXTURE_2D, texNext);
-    gl.viewport(0, 0, curSimW, curSimH);
-
-    // Clear framebuffer
-    gl.clearColor(0, 0, 0, 1);
-    gl.clearDepth(1.);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Specify program to render with
     gl.useProgram(shaders.sim.program);
@@ -188,10 +187,13 @@ function simStep(deltaT, texPrev, texNext, mouseStart, mouseDir, mouseMag) {
     // Provide model view matrix
     gl.uniformMatrix4fv(shaders.sim.uniformLocs.modelViewMatrix, false, modelViewMatrix);
 
-    // Provide the previous state texture as the input
+    // Provide the previous state textures as the input
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texPrev);
-    gl.uniform1i(shaders.sim.uniformLocs.textureSampler, 0);
+    gl.bindTexture(gl.TEXTURE_2D, texPrevV);
+    gl.uniform1i(shaders.sim.uniformLocs.velocitySampler, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, texPrevD);
+    gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
 
     // Provide the user mouse input
     if (mouseStart === null || mouseDir === null) {
@@ -208,14 +210,51 @@ function simStep(deltaT, texPrev, texNext, mouseStart, mouseDir, mouseMag) {
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT);
+    gl.uniform1f(shaders.sim.uniformLocs.firstRender, firstRender);
 
-    // Draw 'em!
+    // Specify we render to framebuffer/next velocity texture
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shaders.simFB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextV, 0);
+    gl.bindTexture(gl.TEXTURE_2D, texNextV);
+    gl.viewport(0, 0, curSimW, curSimH);
+    // Clear framebuffer
+    gl.clearColor(0, 0, 0, 1);
+    gl.clearDepth(1.);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Enable velocity rendering
+    gl.uniform1f(shaders.sim.uniformLocs.densitySwitch, false);
+
+    // Update velocity
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    if (DEBUG_VERBOSITY >= 2)
+    // Specify we render to framebuffer/next density texture
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shaders.simFB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextD, 0);
+    gl.bindTexture(gl.TEXTURE_2D, texNextD);
+    gl.viewport(0, 0, curSimW, curSimH);
+    // Clear framebuffer
+    gl.clearColor(0, 0, 0, 1);
+    gl.clearDepth(1.);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Enable density rendering
+    gl.uniform1f(shaders.sim.uniformLocs.densitySwitch, true);
+
+    // Update density
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // No longer the first render
+    firstRender = false;
+
+    if (DEBUG_VERBOSITY >= 3)
         console.log(`Simulation updated with timestep ${deltaT}!`);
 }
-function renderScene(texNext) {
+function renderScene(texNextV, texNextD) {
     // Unbind framebuffer from simulation -- render to the canvas!
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -260,8 +299,11 @@ function renderScene(texNext) {
 
     // Provide the newly generated sim state texture as input
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texNext);
-    gl.uniform1i(shaders.draw.uniformLocs.textureSampler, 0);
+    gl.bindTexture(gl.TEXTURE_2D, texNextV);
+    gl.uniform1i(shaders.sim.uniformLocs.velocitySampler, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, texNextD);
+    gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
     
     // Other simulation inputs
     gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
@@ -270,7 +312,7 @@ function renderScene(texNext) {
     // Draw 'em!
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    if (DEBUG_VERBOSITY >= 2)
+    if (DEBUG_VERBOSITY >= 3)
         console.log("Scene rendered!");
 }
 
@@ -279,6 +321,13 @@ function renderScene(texNext) {
 //////////////////////////////////////////////
 
 function init() {
+    if (DEBUG_VERBOSITY >= 2) {
+        console.log(`Fluid Sim Vert:\n${SHADERSTR_FLUID_SIM_VERT}`);
+        console.log(`Fluid Sim Frag:\n${SHADERSTR_FLUID_SIM_FRAG}`);
+        console.log(`Fluid Draw Vert:\n${SHADERSTR_FLUID_DRAW_VERT}`);
+        console.log(`Fluid Draw Frag:\n${SHADERSTR_FLUID_DRAW_FRAG}`);
+    }
+
     enabled =
         initCanvas() &&
         initGL() &&
@@ -367,6 +416,8 @@ function initShaderPrograms() {
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
             ["mouseMag", "uMouseMag"],
+            ["densitySwitch", "uDensitySwitch"]
+            ["firstRender", "uInitializeFields"]
         ]);
     let b2 = createShaderProgram("Fluid Draw", shaders.draw,
         SHADERSTR_FLUID_DRAW_VERT, SHADERSTR_FLUID_DRAW_FRAG);
@@ -407,7 +458,8 @@ function createShaderProgram(name, storage, vertSource, fragSource,
     let uniformLocs = {
         projectionMatrix: gl.getUniformLocation(program, "uProjectionMatrix"),
         modelViewMatrix:  gl.getUniformLocation(program, "uModelViewMatrix"),
-        textureSampler:   gl.getUniformLocation(program, "uTex"),
+        velocitySampler:   gl.getUniformLocation(program, "uTexV"),
+        densitySampler:   gl.getUniformLocation(program, "uTexD"),
         texWidth: gl.getUniformLocation(program, "uTexWidth"),
         texHeight: gl.getUniformLocation(program, "uTexHeight"),
     };
@@ -445,44 +497,14 @@ function createVertexBuffer(name, data) {
     return vb;
 }
 function createSimTextures(resX, resY) {
-    // Delete existing textures
-    if (shaders.simTex1 !== null)
-        gl.deleteTexture(shaders.simTex1);
-    if (shaders.simTex2 !== null)
-        gl.deleteTexture(shaders.simTex2);
-
     // Create new render textures to act as alternating simulation buffers
-    let a1 = gl.TEXTURE_2D; // target
-    let a2 = 0; // mipmap level
-    let a3 = gl.RGBA; // internalFormat
-    let a4 = resX; // width
-    let a5 = resY; // height
-    let a6 = 0; // border
-    let a7 = gl.RGBA; // srcFormat
-    let a8 = gl.UNSIGNED_BYTE; // srcType
-    let a9 = //gl.canvas; // pixel source (just copy what's already drawn on the canvas)
-             null; // nvm, the overloads that accept HTML elements are those that don't rescale it...
-                   // providing no pixel source here makes Firefox give an erroneous warning, but whatever
-    // Tex1
-    shaders.simTex1 = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, shaders.simTex1);
-    gl.texImage2D(a1, a2, a3, a4, a5, a6, a7, a8, a9);
-    // Wrap textures, because that'll look cool
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    // Turn on filtering, but no mipmaps!
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    // Tex2
-    shaders.simTex2 = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, shaders.simTex2);
-    gl.texImage2D(a1, a2, a3, a4, a5, a6, a7, a8, a9);
-    // Wrap texture, because that'll look cool
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    // Turn on filtering, but no mipmaps!
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    shaders.simTexV1 = createSimTex(shaders.simTexV1, resX, resY);
+    shaders.simTexV2 = createSimTex(shaders.simTexV2, resX, resY);
+    shaders.simTexD1 = createSimTex(shaders.simTexD1, resX, resY);
+    shaders.simTexD2 = createSimTex(shaders.simTexD2, resX, resY);
+
+    // Make sure it initializes on the first render
+    firstRender = true;
 
     // Create the framebuffer to help in rendering to the texture
     // (only create it if one not already created; doesn't need to be resized)
@@ -495,4 +517,31 @@ function createSimTextures(resX, resY) {
 
     if (DEBUG_VERBOSITY >= 1)
         console.log(`Simulation textures of resolution ${resX}x${resY} created`);
+}
+function createSimTex(existing, resX, resY) {
+    // Delete existing texture
+    if (existing !== null)
+        gl.deleteTexture(existing);
+
+    let a1 = gl.TEXTURE_2D; // target
+    let a2 = 0; // mipmap level
+    let a3 = gl.RGBA; // internalFormat
+    let a4 = resX; // width
+    let a5 = resY; // height
+    let a6 = 0; // border
+    let a7 = gl.RGBA; // srcFormat
+    let a8 = gl.UNSIGNED_BYTE; // srcType
+    let a9 = //gl.canvas; // pixel source (just copy what's already drawn on the canvas)
+             null; // nvm, the overloads that accept HTML elements are those that don't rescale it...
+                   // providing no pixel source here makes Firefox give an erroneous warning, but whatever
+    let tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+    // Wrap texture, because that'll look cool
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    // Turn on filtering, but no mipmaps!
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    return tex;
 }

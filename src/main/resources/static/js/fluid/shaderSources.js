@@ -1,3 +1,6 @@
+// Basic Naviar-Stokes implementation somewhat based on the one from:
+// http://graphics.cs.cmu.edu/nsp/course/15-464/Fall09/papers/StamFluidforGames.pdf
+
 /////////////////////////////////////////////////////
 /*          ~~~ Globals for Debugging ~~~          */
 /////////////////////////////////////////////////////
@@ -5,29 +8,31 @@
 // A bit hacky, but it'll have to work.
 let FORCE_ONE_CHANNEL_ENCODING = false;
 let CHANNEL_ENCODING_MACROS = `
-${FORCE_ONE_CHANNEL_ENCODING ? "#define ONE_CHANNEL_ENCODING" : ""}
 #define C4 16581375.0
 #define C4i (1.0 / C4)
 #define C3 65025.0
 #define C3i (1.0 / C3)
 #define C2 255.0
 #define C2i (1.0 / C2)`
-let CHANNEL_DECODING_HELPER = `
-highp vec2 from(highp vec4 v) {
-#ifndef ONE_CHANNEL_ENCODING
+let CHANNEL_DECODING_HELPERS = `
+highp vec2 fromV(highp vec4 v) {
     return vec2(
         (v.r) +
         (v.g * C2i),
         (v.b) +
         (v.a * C2i)
         ) * 2.0 - vec2(1.0, 1.0);
-#else
-    return vec2(v.x, v.y);
-#endif
+}
+highp float fromD(highp vec4 d) {
+    return (
+        (d.r) +
+        (d.g * C2i) +
+        (d.b * C3i) +
+        (d.a * C4i)
+        ) * 10.0;
 }`;
-let CHANNEL_ENCODING_HELPER = `
-highp vec4 to(highp vec2 i) {
-#ifndef ONE_CHANNEL_ENCODING
+let CHANNEL_ENCODING_HELPERS = `
+highp vec4 toV(highp vec2 i) {
     i += vec2(1.0, 1.0);
     i *= 0.5;
     highp float t;
@@ -45,9 +50,26 @@ highp vec4 to(highp vec2 i) {
     // dimension 2 channel 1 (most significant)
     o.b = i.y;
     return o;
-#else
-    return vec4(i.x, i.y, 1.0, 1.0);
-#endif
+}
+highp vec4 toD(highp float i) {
+    i *= 0.1;
+    highp float t;
+    highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
+    // channel 4 (least significant)
+    t = mod(i, C4i);
+    i -= t;
+    o.a = t * C4;
+    // channel 3
+    t = mod(i, C3i);
+    i -= t;
+    o.b = t * C3;
+    // channel 2
+    t = mod(i, C2i);
+    i -= t;
+    o.g = t * C2;
+    // channel 1 (most significant)
+    o.r = i;
+    return o;
 }`;
 
 /////////////////////////////////////////////
@@ -89,7 +111,11 @@ void main() {
 const SHADERSTR_FLUID_SIM_FRAG = `
 varying highp vec2 vST;
 
-uniform sampler2D uTex;
+uniform bool uDensitySwitch;
+uniform bool uInitializeFields;
+
+uniform sampler2D uTexV;
+uniform sampler2D uTexD;
 uniform int uTexWidth;
 uniform int uTexHeight;
 
@@ -98,8 +124,11 @@ uniform highp vec2 uMouseStart;
 uniform highp vec2 uMouseDir;
 uniform highp float uMouseMag;
 
-const highp float LERP_STRENGTH = 5.0;
-const highp float DRAG_STRENGTH = 1.75;
+const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
+const highp vec2 INIT_DENSITY = 2.0;
+
+const highp float DIFFUSION = 0.80;
+const highp float DRAG_STRENGTH = 0.80;
 
 const highp float MOUSE_MAX_DIST = 0.015;
 const highp float MOUSE_STRENGTH = 1.0;
@@ -110,10 +139,10 @@ const highp float sqrt2i = 1.0 / sqrt2;
 
 #define DISABLE_ROUNDED_CORNERS
 ${CHANNEL_ENCODING_MACROS}
-${CHANNEL_DECODING_HELPER}
-${CHANNEL_ENCODING_HELPER}
+${CHANNEL_DECODING_HELPERS}
+${CHANNEL_ENCODING_HELPERS}
 
-void main() {
+highp vec2 velocity() {
     // Get proximity to mouse (capsule-shaped influence)
     highp vec2 mouseEnd = uMouseStart + uMouseDir * uMouseMag;
     highp vec2 temp = vST - uMouseStart; // relative offset
@@ -133,58 +162,53 @@ void main() {
     mouseInfluence = max(0.0, MOUSE_MAX_DIST - mouseInfluence) / MOUSE_MAX_DIST;
     mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * MOUSE_STRENGTH;
 
-    // Sample neighbouring pixels
-    // (n is -1, p is +1)
-    // ((clipping isn't a problem b/c of wrapping))
-    highp float w = -1.0 / float(uTexWidth);
-    highp float h = -1.0 / float(uTexHeight);
-    // bottom row
-    highp vec2 val_nn = from(texture2D(uTex, vST + vec2(-w, -h)));
-    highp vec2 val_0n = from(texture2D(uTex, vST + vec2(0.0, -h)));
-    highp vec2 val_pn = from(texture2D(uTex, vST + vec2(w, -h)));
-    // middle row
-    highp vec2 val_n0 = from(texture2D(uTex, vST + vec2(-w, 0.0)));
-    highp vec2 val_00 = from(texture2D(uTex, vST));
-    highp vec2 val_p0 = from(texture2D(uTex, vST + vec2(w, 0.0)));
-    // top row
-    highp vec2 val_np = from(texture2D(uTex, vST + vec2(-w, h)));
-    highp vec2 val_0p = from(texture2D(uTex, vST + vec2(0.0, h)));
-    highp vec2 val_pp = from(texture2D(uTex, vST + vec2(w, h)));
+    // Get existing velocity
+    highp vec2 new = fromV(texture2D(uTexV, vST));
 
-    // Perform dot products on the relative positions of sampled pixels
-    // to get how much fluid they extract from/give to this pixel
-    // bottom row
-    val_nn = normalize(val_nn) * dot(vec2(-sqrt2, -sqrt2), val_nn);
-    val_0n = normalize(val_0n) * -val_0n.y;
-    val_pn = normalize(val_pn) * dot(vec2( sqrt2, -sqrt2), val_pn);
-    // middle row
-    val_n0 = normalize(val_n0) * -val_n0.x;
-    // (current vector is already trying to extract)
-    val_p0 = normalize(val_p0) *  val_p0.x;
-    // top row
-    val_np = normalize(val_np) * dot(vec2(-sqrt2, sqrt2), val_np);
-    val_0p = normalize(val_0p) * val_0p.y;
-    val_pp = normalize(val_pp) * dot(vec2( sqrt2, sqrt2), val_pp);
-
-    // Animate this pixel's velocity with what others around it wants it to do
-    highp vec2 target =
-        val_nn * sqrt2i + val_0n * 0.5 + val_pn * sqrt2i +
-        val_n0 * 0.5    + val_00       + val_p0 * 0.5 +
-        val_np * sqrt2i + val_0p * 0.5 + val_pp * sqrt2i;
-    target = vec2(
-        min(1.0, max(-1.0, target.x)),
-        min(1.0, max(-1.0, target.y))
-        );
-    highp vec2 cur = val_00;
-    cur = mix(cur, target, min(LERP_STRENGTH * uDeltaTime, 1.0));
+    // (no velocity movement yet, right now we're just testing)
+    // Implement me!
 
     // Apply some slowdown
-    cur = mix(cur, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
+    target = mix(target, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
 
     // Add in the mouse movement
-    cur += uMouseDir * mouseInfluence;
+    new += uMouseDir * mouseInfluence;
 
-    gl_FragColor = to(cur);
+    return uInitializeFields ? INIT_VELOCITY : v;
+}
+
+highp float density() {
+    // Sample current pixel & find where we will source our fluid from
+    highp float w = float(uTexWidth);
+    highp float h = float(uTexHeight);
+    highp vec2 move_delta = fromV(texture2D(uTexV, vST)) * uDeltaTime * vec2(w, h);
+    highp float d_cur = fromD(texture2D(uTexV, vST));
+
+    // Get density around current for diffusion
+    // (n is -1, p is +1)
+    // ((clipping isn't a problem b/c of wrapping))
+    w = -1.0 / w;
+    h = -1.0 / h;
+    highp float c_0n = fromD(texture2D(uTex, vST + vec2(0.0, -h)));
+    highp float c_n0 = fromD(texture2D(uTex, vST + vec2(-w, 0.0)));
+    highp float c_p0 = fromD(texture2D(uTex, vST + vec2(w, 0.0)));
+    highp float c_0p = fromD(texture2D(uTex, vST + vec2(0.0, h)));
+
+    d_cur += DIFFUSION * (c_0n + c_n0 + c_p0 + c_0p- 4.0 * d_cur);
+    // (no smoothing or anything here for the time being)
+    // Implement me!
+
+    // Get density around sample for advection
+    // Interpolation is already done for us!
+    d_cur = fromD(texture2D(uTex, vST + move_delta));
+
+    return uInitializeFields ? INIT_DENSITY : d;
+}
+
+void main() {
+    // I WILL separate out these operations... I KNOW that branching is fake, you don't need to REMIND me!
+    // Implement me!
+    gl_FragColor = uDensitySwitch ? toD(density()) : toV(velocity());
 }
 `;
 
@@ -205,7 +229,7 @@ const mediump float LIGHT_MAX = 1.0;
 const mediump float LIGHT_DIF = LIGHT_MAX - LIGHT_MIN;
 
 ${CHANNEL_ENCODING_MACROS}
-${CHANNEL_DECODING_HELPER}
+${CHANNEL_DECODING_HELPERS}
 
 void main() {
     // Sample neighbouring pixels
