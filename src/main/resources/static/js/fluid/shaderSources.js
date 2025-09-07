@@ -127,9 +127,11 @@ uniform highp vec2 uMouseDir;
 uniform highp float uMouseMag;
 
 const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
-const highp float INIT_DENSITY = 2.0;
+const highp float INIT_DENSITY_LOW = 2.0;
+const highp float INIT_DENSITY_HIGH = 6.5;
 
-const highp float DIFFUSION = 0.80;
+const highp float SOURCE_SPEED = 2.50;
+const highp float DIFFUSION = 0.3;
 const highp float DRAG_STRENGTH = 0.80;
 
 const highp float MOUSE_MAX_DIST = 0.015;
@@ -176,7 +178,7 @@ highp vec2 velocity() {
     // Add in the mouse movement
     new += uMouseDir * mouseInfluence;
 
-    return uInitializeFields ? INIT_VELOCITY : new;
+    return new;
 }
 
 highp float density() {
@@ -184,7 +186,10 @@ highp float density() {
     highp float w = float(uTexWidth);
     highp float h = float(uTexHeight);
     highp vec2 move_delta = fromV(texture(uTexV, vST)) * uDeltaTime * vec2(w, h);
-    highp float d_cur = fromD(texture(uTexV, vST));
+
+    // Get density around sample for advection
+    // Interpolation is already done for us!
+    highp float new = fromD(texture(uTexD, vST + move_delta));
 
     // Get density around current for diffusion
     // (n is -1, p is +1)
@@ -196,18 +201,31 @@ highp float density() {
     highp float c_p0 = fromD(texture(uTexD, vST + vec2(w, 0.0)));
     highp float c_0p = fromD(texture(uTexD, vST + vec2(0.0, h)));
 
-    d_cur += DIFFUSION * (c_0n + c_n0 + c_p0 + c_0p- 4.0 * d_cur);
+    new += DIFFUSION * (c_0n + c_n0 + c_p0 + c_0p- 4.0 * new);
     // (no smoothing or anything here for the time being)
     // Implement me!
 
-    // Get density around sample for advection
-    // Interpolation is already done for us!
-    d_cur = fromD(texture(uTexD, vST + move_delta));
+    // FOR DEBUG FLOW!
+    // Top left of the screen is a source
+    if (vST.x > 0.1 && vST.x < 0.2 &&
+        vST.y > 0.8 && vST.y < 0.9)
+        new += SOURCE_SPEED * uDeltaTime;
+    // Bottom right of the screen is a sink
+    if (vST.x > 0.8 && vST.x < 0.9 &&
+        vST.y > 0.1 && vST.y < 0.2)
+        new -= SOURCE_SPEED * uDeltaTime;
 
-    return uInitializeFields ? INIT_DENSITY : d_cur;
+    return new;
 }
 
 void main() {
+    if (uInitializeFields) {
+        outVelocity = toV(INIT_VELOCITY);
+        bool isDense = vST.x >= 0.0 && vST.x <= 0.5 &&
+                       vST.y >= 0.5 && vST.y <= 1.0;
+        outDensity = toD(isDense ? INIT_DENSITY_HIGH : INIT_DENSITY_LOW);
+        return;
+    }
     outVelocity = toV(velocity());
     outDensity = toD(density());
 }`;
@@ -246,6 +264,8 @@ void main() {
     mediump float l = max(0.0, dot(-LIGHT_DIR, n));
     l = l * LIGHT_DIF + LIGHT_MIN;
 
+    // outColor = COL * l;
+    // outColor = COL * density * 0.1;
     outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
     // mediump vec2 mov = from(texture(uTex, vST));

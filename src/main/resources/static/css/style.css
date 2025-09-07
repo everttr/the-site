@@ -105,6 +105,7 @@ body
 }
 #floating-body
 {
+    display: none;
     position: absolute;
     width: 850px;
     max-width: 75%;
