@@ -416,7 +416,7 @@ function initShaderPrograms() {
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
             ["mouseMag", "uMouseMag"],
-            ["densitySwitch", "uDensitySwitch"]
+            ["densitySwitch", "uDensitySwitch"],
             ["firstRender", "uInitializeFields"]
         ]);
     let b2 = createShaderProgram("Fluid Draw", shaders.draw,

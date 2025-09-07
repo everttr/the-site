@@ -125,7 +125,7 @@ uniform highp vec2 uMouseDir;
 uniform highp float uMouseMag;
 
 const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
-const highp vec2 INIT_DENSITY = 2.0;
+const highp float INIT_DENSITY = 2.0;
 
 const highp float DIFFUSION = 0.80;
 const highp float DRAG_STRENGTH = 0.80;
@@ -169,12 +169,12 @@ highp vec2 velocity() {
     // Implement me!
 
     // Apply some slowdown
-    target = mix(target, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
+    new = mix(new, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
 
     // Add in the mouse movement
     new += uMouseDir * mouseInfluence;
 
-    return uInitializeFields ? INIT_VELOCITY : v;
+    return uInitializeFields ? INIT_VELOCITY : new;
 }
 
 highp float density() {
@@ -189,10 +189,10 @@ highp float density() {
     // ((clipping isn't a problem b/c of wrapping))
     w = -1.0 / w;
     h = -1.0 / h;
-    highp float c_0n = fromD(texture2D(uTex, vST + vec2(0.0, -h)));
-    highp float c_n0 = fromD(texture2D(uTex, vST + vec2(-w, 0.0)));
-    highp float c_p0 = fromD(texture2D(uTex, vST + vec2(w, 0.0)));
-    highp float c_0p = fromD(texture2D(uTex, vST + vec2(0.0, h)));
+    highp float c_0n = fromD(texture2D(uTexD, vST + vec2(0.0, -h)));
+    highp float c_n0 = fromD(texture2D(uTexD, vST + vec2(-w, 0.0)));
+    highp float c_p0 = fromD(texture2D(uTexD, vST + vec2(w, 0.0)));
+    highp float c_0p = fromD(texture2D(uTexD, vST + vec2(0.0, h)));
 
     d_cur += DIFFUSION * (c_0n + c_n0 + c_p0 + c_0p- 4.0 * d_cur);
     // (no smoothing or anything here for the time being)
@@ -200,9 +200,9 @@ highp float density() {
 
     // Get density around sample for advection
     // Interpolation is already done for us!
-    d_cur = fromD(texture2D(uTex, vST + move_delta));
+    d_cur = fromD(texture2D(uTexD, vST + move_delta));
 
-    return uInitializeFields ? INIT_DENSITY : d;
+    return uInitializeFields ? INIT_DENSITY : d_cur;
 }
 
 void main() {
@@ -232,38 +232,18 @@ ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 
 void main() {
-    // Sample neighbouring pixels
-    // (n is -1, p is +1)
-    // ((clipping isn't a problem b/c of wrapping))
-    mediump float w = -1.0 / float(uTexWidth);
-    mediump float h = -1.0 / float(uTexHeight);
-    // bottom row
-    mediump vec2 val_nn = from(texture2D(uTex, vST + vec2(-w, -h)));
-    mediump vec2 val_0n = from(texture2D(uTex, vST + vec2(0.0, -h)));
-    mediump vec2 val_pn = from(texture2D(uTex, vST + vec2(w, -h)));
-    // middle row
-    mediump vec2 val_n0 = from(texture2D(uTex, vST + vec2(-w, 0.0)));
-    mediump vec2 val_00 = from(texture2D(uTex, vST));
-    mediump vec2 val_p0 = from(texture2D(uTex, vST + vec2(w, 0.0)));
-    // top row
-    mediump vec2 val_np = from(texture2D(uTex, vST + vec2(-w, h)));
-    mediump vec2 val_0p = from(texture2D(uTex, vST + vec2(0.0, h)));
-    mediump vec2 val_pp = from(texture2D(uTex, vST + vec2(w, h)));
-
-    // Average out those samples
-    val_00 =
-        (val_nn + val_0n + val_pn +
-         val_n0 + val_00 + val_p0 +
-         val_np + val_0p + val_pp) / 9.0;
+    // Sample simulation at pixel
+    mediump vec2 vel = fromV(texture2D(uTex, vST));
+    mediump float density = fromD(texture2D(uTex, vST));
 
     // Create a normal of the fluid's surface
-    mediump vec3 n = normalize(vec3(val_00.x, val_00.y, UPRIGHTNESS));
+    mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
 
     // Calculate lighting
     mediump float l = max(0.0, dot(-LIGHT_DIR, n));
     l = l * LIGHT_DIF + LIGHT_MIN;
 
-    gl_FragColor = COL * l;
+    gl_FragColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
     // mediump vec2 mov = from(texture2D(uTex, vST));
     // gl_FragColor = vec4(mov.x * 0.25 + 0.5, mov.y * 0.25 + 0.5, 1.0, 1.0);
