@@ -158,10 +158,11 @@ function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mou
 
     // Specify we render to framebuffer/next sim textures
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, shaders.simFB);
-    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextV, 0);
     gl.bindTexture(gl.TEXTURE_2D, texNextV);
-    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, texNextD, 0);
+    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextV, 0);
     gl.bindTexture(gl.TEXTURE_2D, texNextD);
+    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, texNextD, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.viewport(0, 0, curSimW, curSimH);
 
     // Clear framebuffer
@@ -225,7 +226,7 @@ function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mou
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT);
-    gl.uniform1f(shaders.sim.uniformLocs.firstRender, firstRender);
+    gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
     // Update sim
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
