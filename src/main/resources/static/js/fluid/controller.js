@@ -7,9 +7,13 @@
 // Constants/Parameters
 const minCanvW = 128;
 const minCanvH = 128;
-const canvasScale = 1.0;
+const canvasScale = 0.5;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
+const SIMSTEP_ID_START = 0;
+const SIMSTEP_ID_DIFFUSE = 1;
+const SIMSTEP_ID_END = 2;
+const SIMSTEP_DUFFUSE_D_ITERATIONS = 5;
 const DEBUG_VERBOSITY = 2;
 // Plain Globals
 var canvas;
@@ -46,7 +50,10 @@ var curSimW = null;
 var curSimH = null;
 var timeSim = -1; // ms it's been running
 var timePrev = new Date().valueOf();
-var frameParity = 0;
+var simTexDPrev = null;
+var simTexDNext = null;
+var simTexVPrev = null;
+var simTexVNext = null;
 var firstRender = true;
 var lastTimeDelta;
 var curMousePos = null;
@@ -108,7 +115,7 @@ function tryUpdateRepeating(_ = null) {
     timePrev = timeCur;
     lastTimeDelta = timeDelta;
     // so we don't update twice in the same frame for whatever reason
-    if (timeDelta == 0)
+    if (timeDelta == 0 && !firstRender)
         return;
 
     updateSim(timeDelta / 1000.0);
@@ -117,21 +124,12 @@ function tryUpdateRepeating(_ = null) {
         requestAnimationFrame(tryUpdateRepeating);
 }
 function updateSim(deltaT) {
-    // Sim textures alternate between input & output
-    let texPrevV;
-    let texPrevD;
-    if (frameParity === 0) {
-        texPrevV = shaders.simTexV1;
-        texNextV = shaders.simTexV2;
-        texPrevD = shaders.simTexD1;
-        texNextD = shaders.simTexD2;
-        frameParity = 1;
-    } else {
-        texPrevV = shaders.simTexV2;
-        texNextV = shaders.simTexV1;
-        texPrevD = shaders.simTexD2;
-        texNextD = shaders.simTexD1;
-        frameParity = 0;
+    // On start, arbitrarily assign which sim textures are input/output
+    if (firstRender) {
+        simTexDPrev = shaders.simTexD1;
+        simTexDNext = shaders.simTexD2;
+        simTexVPrev = shaders.simTexV1;
+        simTexVNext = shaders.simTexV2;
     }
 
     // Calculate mouse parameters
@@ -148,20 +146,17 @@ function updateSim(deltaT) {
     prevMousePos = curMousePos;
 
     // Update the fluid simulation
-    simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mouseDir, mouseMag);
+    simStep(deltaT, mouseStart, mouseDir, mouseMag);
 
     // Then render the changes
-    renderScene(texNextV, texNextD);
+    // (after final iteration, newest state is flipped to "previous" variable)
+    renderScene(simTexVPrev, simTexDPrev);
 }
-function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mouseDir, mouseMag) {
+function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders
 
-    // Specify we render to framebuffer/next sim textures
+    // Specify we render to framebuffer/ sim textures
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, shaders.simFB);
-    gl.bindTexture(gl.TEXTURE_2D, texNextV);
-    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texNextV, 0);
-    gl.bindTexture(gl.TEXTURE_2D, texNextD);
-    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, texNextD, 0);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.viewport(0, 0, curSimW, curSimH);
 
@@ -170,7 +165,6 @@ function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mou
     gl.clearDepth(1.);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Specify program to render with
     gl.useProgram(shaders.sim.program);
@@ -203,14 +197,6 @@ function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mou
     // Provide model view matrix
     gl.uniformMatrix4fv(shaders.sim.uniformLocs.modelViewMatrix, false, modelViewMatrix);
 
-    // Provide the previous state textures as the input
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texPrevV);
-    gl.uniform1i(shaders.sim.uniformLocs.velocitySampler, 0);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, texPrevD);
-    gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
-
     // Provide the user mouse input
     if (mouseStart === null || mouseDir === null) {
         gl.uniform2f(shaders.sim.uniformLocs.mouseStart, 0, 0);
@@ -228,16 +214,59 @@ function simStep(deltaT, texPrevV, texNextV, texPrevD, texNextD, mouseStart, mou
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT);
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
-    // Update sim
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // Do a certain number of iterative steps to make it less chaotic
+    let iterations = 2 + SIMSTEP_DUFFUSE_D_ITERATIONS;
+    for (let i = 0; i < iterations; i++) {
+        let simStepID =
+            i == 0 ? SIMSTEP_ID_START :
+            i == iterations - 1 ? SIMSTEP_ID_END :
+            SIMSTEP_ID_DIFFUSE;
+        gl.uniform1i(shaders.sim.uniformLocs.simStepID, simStepID);
+        
+        // output/framebuffer
+        gl.bindTexture(gl.TEXTURE_2D, simTexVNext);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, simTexVNext, 0);
+        gl.bindTexture(gl.TEXTURE_2D, simTexDNext);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, simTexDNext, 0);
+        // input/sampler
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.velocitySampler, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, simTexDPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
+        // Clear framebuffer
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // Update sim
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        if (firstRender)
+            break;
+
+        // Swap input/output buffers
+        var temp = simTexVNext;
+        simTexVNext = simTexVPrev;
+        simTexVPrev = temp;
+        temp = simTexDNext;
+        simTexDNext = simTexDPrev;
+        simTexDPrev = temp;
+    }
+
+    if (firstRender) {
+        if (DEBUG_VERBOSITY >= 2)
+            console.log("Completed initial sim state setup with current textures");
+    }
+    else {
+        if (DEBUG_VERBOSITY >= 3)
+            console.log(`Simulation updated with timestep ${deltaT}!`);
+    }
 
     // No longer the first render
     firstRender = false;
 
-    if (DEBUG_VERBOSITY >= 3)
-        console.log(`Simulation updated with timestep ${deltaT}!`);
 }
-function renderScene(texNextV, texNextD) {
+function renderScene(texVel, texDens) {
     // Unbind framebuffer from simulation -- render to the canvas!
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -282,10 +311,10 @@ function renderScene(texNextV, texNextD) {
 
     // Provide the newly generated sim state texture as input
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texNextV);
+    gl.bindTexture(gl.TEXTURE_2D, texVel);
     gl.uniform1i(shaders.draw.uniformLocs.velocitySampler, 0);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, texNextD);
+    gl.bindTexture(gl.TEXTURE_2D, texDens);
     gl.uniform1i(shaders.draw.uniformLocs.densitySampler, 1);
     
     // Other simulation inputs
@@ -323,13 +352,19 @@ function init() {
 
         // Focus/unfocus performance evetns
         window.addEventListener("focus", () => {
+            // ignore if already focused somehow
+            if (focused)
+                return;
+
             timePrev = new Date().valueOf() - lastTimeDelta; // start counting from now!
             focused = true;
+            if (DEBUG_VERBOSITY >= 2) console.log("Focused window");
             // Also have to start the rendering loop back up again
             tryUpdateRepeating();
         })
         window.addEventListener("blur", () => {
             // This will naturally dequeue the rendering loop
+            if (DEBUG_VERBOSITY >= 2) console.log("Unfocused window");
             focused = false;
         })
 
@@ -399,7 +434,8 @@ function initShaderPrograms() {
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
             ["mouseMag", "uMouseMag"],
-            ["firstRender", "uInitializeFields"]
+            ["firstRender", "uInitializeFields"],
+            ["simStepID", "uSimStep"]
         ]);
     let b2 = createShaderProgram("Fluid Draw", shaders.draw,
         SHADERSTR_FLUID_DRAW_VERT, SHADERSTR_FLUID_DRAW_FRAG);
