@@ -17,7 +17,8 @@ const SIMID_V_PROJECT = 8;
 const SIMID_V_ADVECT = 16;
 const SIM_V_DIFFUSE_COUNT = 3; // # of iterations after these finish
 const SIM_V_PROJECT1_COUNT = 2 + SIM_V_DIFFUSE_COUNT;
-const SIM_V_PROJECT2_COUNT = 2 + SIM_V_PROJECT1_COUNT;
+const SIM_V_ADVECT_COUNT = 1 + SIM_V_PROJECT1_COUNT;
+const SIM_V_PROJECT2_COUNT = 2 + SIM_V_ADVECT_COUNT;
 const DEBUG_VERBOSITY = 2;
 // Plain Globals
 var canvas;
@@ -220,14 +221,14 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
 
     // Do a certain number of iterative steps to make it less chaotic
     let iterations = SIM_V_PROJECT2_COUNT;
-    for (let i = 0; i < iterations; i++) {
+    for (let i = 1; i <= iterations; i++) {
         let simStepID =
-            SIMID_D_DIFFUSE | // always diffuse density
-            (i == iterations - 1 ? SIMID_D_ADVECT : 0) | // only advect density on final iteration
-            (i < SIM_V_DIFFUSE_COUNT ? SIMID_V_DIFFUSE : 0) | // first vel iterations diffuse
-            (i < SIM_V_PROJECT1_COUNT ? SIMID_V_PROJECT : 0) | // next vel iterations project
-            (i == SIM_V_PROJECT1_COUNT - 1 ? SIMID_V_ADVECT : 0) | // final projection iteration also advects
-            (i >= SIM_V_PROJECT1_COUNT ? SIMID_V_PROJECT : 0); // final iterations project again
+            (i < iterations ? SIMID_D_DIFFUSE : 0) | // diffuse density on all but last iteration
+            (i == iterations ? SIMID_D_ADVECT : 0) | // only advect density on final iteration
+            (i <= SIM_V_DIFFUSE_COUNT ? SIMID_V_DIFFUSE : 0) | // first vel iterations diffuse
+            (i > SIM_V_DIFFUSE_COUNT && i <= SIM_V_PROJECT1_COUNT ? SIMID_V_PROJECT : 0) | // next vel iterations project
+            (i == SIM_V_ADVECT_COUNT ? SIMID_V_ADVECT : 0) | // then advect once
+            (i > SIM_V_ADVECT_COUNT ? SIMID_V_PROJECT : 0); // final iterations project again
         gl.uniform1ui(shaders.sim.uniformLocs.simStepID, simStepID);
         
         // output/framebuffer
