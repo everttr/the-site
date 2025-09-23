@@ -10,10 +10,14 @@ const minCanvH = 128;
 const canvasScale = 0.5;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
-const SIMSTEP_ID_START = 0;
-const SIMSTEP_ID_DIFFUSE = 1;
-const SIMSTEP_ID_END = 2;
-const SIMSTEP_DUFFUSE_D_ITERATIONS = 5;
+const SIMID_D_DIFFUSE = 1;
+const SIMID_D_ADVECT = 2;
+const SIMID_V_DIFFUSE = 4;
+const SIMID_V_PROJECT = 8;
+const SIMID_V_ADVECT = 16;
+const SIM_V_DIFFUSE_COUNT = 3; // # of iterations after these finish
+const SIM_V_PROJECT1_COUNT = 2 + SIM_V_DIFFUSE_COUNT;
+const SIM_V_PROJECT2_COUNT = 2 + SIM_V_PROJECT1_COUNT;
 const DEBUG_VERBOSITY = 2;
 // Plain Globals
 var canvas;
@@ -215,13 +219,16 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
     // Do a certain number of iterative steps to make it less chaotic
-    let iterations = 2 + SIMSTEP_DUFFUSE_D_ITERATIONS;
+    let iterations = SIM_V_PROJECT2_COUNT;
     for (let i = 0; i < iterations; i++) {
         let simStepID =
-            i == 0 ? SIMSTEP_ID_START :
-            i == iterations - 1 ? SIMSTEP_ID_END :
-            SIMSTEP_ID_DIFFUSE;
-        gl.uniform1i(shaders.sim.uniformLocs.simStepID, simStepID);
+            SIMID_D_DIFFUSE | // always diffuse density
+            (i == iterations - 1 ? SIMID_D_ADVECT : 0) | // only advect density on final iteration
+            (i < SIM_V_DIFFUSE_COUNT ? SIMID_V_DIFFUSE : 0) | // first vel iterations diffuse
+            (i < SIM_V_PROJECT1_COUNT ? SIMID_V_PROJECT : 0) | // next vel iterations project
+            (i == SIM_V_PROJECT1_COUNT - 1 ? SIMID_V_ADVECT : 0) | // final projection iteration also advects
+            (i >= SIM_V_PROJECT1_COUNT ? SIMID_V_PROJECT : 0); // final iterations project again
+        gl.uniform1ui(shaders.sim.uniformLocs.simStepID, simStepID);
         
         // output/framebuffer
         gl.bindTexture(gl.TEXTURE_2D, simTexVNext);
@@ -435,7 +442,7 @@ function initShaderPrograms() {
             ["mouseDir", "uMouseDir"],
             ["mouseMag", "uMouseMag"],
             ["firstRender", "uInitializeFields"],
-            ["simStepID", "uSimStep"]
+            ["simStepID", "uSimID"]
         ]);
     let b2 = createShaderProgram("Fluid Draw", shaders.draw,
         SHADERSTR_FLUID_DRAW_VERT, SHADERSTR_FLUID_DRAW_FRAG);

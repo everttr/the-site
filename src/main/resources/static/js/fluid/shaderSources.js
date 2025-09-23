@@ -120,10 +120,12 @@ layout(location = 1) out highp vec4 outDensity;
 in highp vec2 vST;
 
 uniform bool uInitializeFields;
-uniform int uSimStep;
-const int SIMSTEP_ID_START = 0;
-const int SIMSTEP_ID_DIFFUSE = 1;
-const int SIMSTEP_ID_END = 2;
+uniform lowp uint uSimID;
+const lowp uint SIMID_D_DIFFUSE = 1u;
+const lowp uint SIMID_D_ADVECT = 2u;
+const lowp uint SIMID_V_DIFFUSE = 4u;
+const lowp uint SIMID_V_PROJECT = 8u;
+const lowp uint SIMID_V_ADVECT = 16u;
 
 uniform sampler2D uTexV;
 uniform sampler2D uTexD;
@@ -140,10 +142,10 @@ const highp float INIT_DENSITY_LOW = 2.0;
 const highp float INIT_DENSITY_HIGH = 6.5;
 
 const highp float SOURCE_SPEED = 2.50;
-const highp float DENSITY_DIFFUSION = 15.0;
-const highp float VELOCITY_DIFFUSION = 0.4;
-const highp float VELOCITY_GRADIENT_PULL = 1.0;
-const highp float DRAG_STRENGTH = 0.30;
+const highp float DENSITY_DIFFUSION = 10.0;
+const highp float VELOCITY_DIFFUSION = 5.0;
+const highp float VELOCITY_GRADIENT_PULL = 0.2;
+const highp float DRAG_STRENGTH = 0.10;
 
 const highp float MOUSE_MAX_DIST = 0.015;
 const highp float MOUSE_STRENGTH = 1.0;
@@ -166,84 +168,18 @@ void main() {
         return;
     }
 
-    // Mouse calculation
-    // Get proximity to mouse (capsule-shaped influence)
-    highp float mouseInfluence;
-    if (uSimStep == SIMSTEP_ID_END) {
-        highp vec2 mouseEnd = uMouseStart + uMouseDir * uMouseMag;
-        highp vec2 temp = vST - uMouseStart; // relative offset
-        highp float alongLine = dot(temp, uMouseDir); // distance/shadow along mouse dir
-        temp = uMouseStart + uMouseDir * dot(temp, uMouseDir); // closest point on line
-        highp float lineProx = alongLine > 0.0 && alongLine < uMouseMag ? distance(vST, temp) : MOUSE_MAX_DIST;
-        #ifndef ROUNDED_MOUSE_CORNERS
-        highp float circleProxStart = distance(vST, uMouseStart);
-        highp float circleProxEnd = distance(vST, mouseEnd);
-        #endif
-        mouseInfluence =
-        #ifndef ROUNDED_MOUSE_CORNERS
-            min(lineProx, min(circleProxStart, circleProxEnd));
-        #else
-            lineProx;
-        #endif
-        mouseInfluence = max(0.0, MOUSE_MAX_DIST - mouseInfluence) / MOUSE_MAX_DIST;
-        mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * MOUSE_STRENGTH;
-    }
-
     // Common calculations
     // Find where we will source our fluid from
-    highp vec2 move_delta;
-    highp float w;
-    highp float h;
-    if (uSimStep == SIMSTEP_ID_DIFFUSE) {
-        w = float(uTexWidth);
-        h = float(uTexHeight);
-        highp vec2 move_delta = fromV(texture(uTexV, vST)) * uDeltaTime * vec2(w, h);
-        w = -1.0 / w;
-        h = -1.0 / h;
-    }
-
-    // Density calculation
-    {
-        highp float new = fromD(texture(uTexD, vST));
-
-        if (uSimStep == SIMSTEP_ID_DIFFUSE) {
-            // Get density around current for diffusion
-            // (n is -1, p is +1)
-            // ((clipping isn't a problem b/c of wrapping))
-            highp float c_0n = fromD(texture(uTexD, vST + vec2(0.0, -h)));
-            highp float c_n0 = fromD(texture(uTexD, vST + vec2(-w, 0.0)));
-            highp float c_00 = fromD(texture(uTexD, vST));
-            highp float c_p0 = fromD(texture(uTexD, vST + vec2(w, 0.0)));
-            highp float c_0p = fromD(texture(uTexD, vST + vec2(0.0, h)));
-
-            highp float dens_diffusion = DENSITY_DIFFUSION * uDeltaTime;
-            new = (c_00 + dens_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * dens_diffusion);
-        }
-
-        if (uSimStep == SIMSTEP_ID_START) {
-            // Get density around sample for advection
-            // Interpolation is already done for us!
-            new = fromD(texture(uTexD, vST + move_delta));
-
-            // FOR DEBUG FLOW!
-            // Top left of the screen is a source
-            if (vST.x > 0.1 && vST.x < 0.2 &&
-                vST.y > 0.8 && vST.y < 0.9)
-                new += SOURCE_SPEED * uDeltaTime;
-            // Bottom right of the screen is a sink
-            if (vST.x > 0.8 && vST.x < 0.9 &&
-                vST.y > 0.1 && vST.y < 0.2)
-                new -= SOURCE_SPEED * uDeltaTime;
-        }
-
-        outDensity = toD(new);
-    }
+    highp float w = float(uTexWidth);
+    highp float h = float(uTexHeight);
+    highp vec2 move_delta = fromV(texture(uTexV, vST)) * uDeltaTime * vec2(w, h);
+    w = -1.0 / w;
+    h = -1.0 / h;
 
     // Velocity calculation
     // (currently not iterative, so only happens on final step)
-    if (uSimStep == SIMSTEP_ID_END) {
-        highp vec2 new;
-
+    highp vec2 newV;
+    if ((uSimID & SIMID_D_ADVECT) == SIMID_D_ADVECT) {
         // Sample velocity gradient around pixel
         highp vec2 gradient = vec2(
             fromV(texture(uTexV, vST + vec2(w, 0.0))).x - fromV(texture(uTexV, vST + vec2(-w, 0.0))).x,
@@ -257,24 +193,84 @@ void main() {
         highp vec2 c_p0 = fromV(texture(uTexV, vST + vec2(w, 0.0)));
         highp vec2 c_0p = fromV(texture(uTexV, vST + vec2(0.0, h)));
 
-        new += VELOCITY_DIFFUSION * (c_0n + c_n0 + c_p0 + c_0p - 4.0 * new);
+        newV += VELOCITY_DIFFUSION * (c_0n + c_n0 + c_p0 + c_0p - 4.0 * newV);
         // (no smoothing or anything here for the time being)
         // Implement me!
 
         // Get velocity around sample for advection
         // Interpolation is already done for us!
-        new = fromV(texture(uTexV, vST + move_delta));
+        newV = fromV(texture(uTexV, vST + move_delta));
 
         // Move it towards the gradient
-        new += gradient * VELOCITY_GRADIENT_PULL * uDeltaTime;
+        newV += gradient * VELOCITY_GRADIENT_PULL * uDeltaTime;
 
         // Apply some slowdown
-        new = mix(new, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
+        newV = mix(newV, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
+
+        // Mouse calculation
+        // Get proximity to mouse (capsule-shaped influence)
+        highp vec2 mouseEnd = uMouseStart + uMouseDir * uMouseMag;
+        highp vec2 temp = vST - uMouseStart; // relative offset
+        highp float alongLine = dot(temp, uMouseDir); // distance/shadow along mouse dir
+        temp = uMouseStart + uMouseDir * dot(temp, uMouseDir); // closest point on line
+        highp float lineProx = alongLine > 0.0 && alongLine < uMouseMag ? distance(vST, temp) : MOUSE_MAX_DIST;
+        #ifndef ROUNDED_MOUSE_CORNERS
+        highp float circleProxStart = distance(vST, uMouseStart);
+        highp float circleProxEnd = distance(vST, mouseEnd);
+        #endif
+        highp float mouseInfluence =
+        #ifndef ROUNDED_MOUSE_CORNERS
+            min(lineProx, min(circleProxStart, circleProxEnd));
+        #else
+            lineProx;
+        #endif
+        mouseInfluence = max(0.0, MOUSE_MAX_DIST - mouseInfluence) / MOUSE_MAX_DIST;
+        mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * MOUSE_STRENGTH;
 
         // Add in the mouse movement
-        new += uMouseDir * mouseInfluence;
+        newV += uMouseDir * mouseInfluence;
 
-        outVelocity = toV(new);
+        outVelocity = toV(newV);
+    }
+
+    // Density calculation
+    {
+        highp float newD;
+
+        // (iterative)
+        if ((uSimID & SIMID_D_DIFFUSE) == SIMID_D_DIFFUSE) {
+            // Get density around current for diffusion
+            // (n is -1, p is +1)
+            // ((clipping isn't a problem b/c of wrapping))
+            highp float c_0n = fromD(texture(uTexD, vST + vec2(0.0, -h)));
+            highp float c_n0 = fromD(texture(uTexD, vST + vec2(-w, 0.0)));
+            highp float c_00 = fromD(texture(uTexD, vST));
+            highp float c_p0 = fromD(texture(uTexD, vST + vec2(w, 0.0)));
+            highp float c_0p = fromD(texture(uTexD, vST + vec2(0.0, h)));
+
+            highp float dens_diffusion = DENSITY_DIFFUSION * uDeltaTime;
+            newD = (c_00 + dens_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * dens_diffusion);
+        }
+
+        // (runs once, ending the step)
+        if ((uSimID & SIMID_D_ADVECT) == SIMID_D_ADVECT) {
+            // Get density around sample for advection
+            // Interpolation is already done for us!
+            // (velocity sample is safe to use because sampled after done relaxing)
+            newD = fromD(texture(uTexD, vST + newV * uDeltaTime / vec2(-w, -h)));
+
+            // FOR DEBUG FLOW!
+            // Top left of the screen is a source
+            if (vST.x > 0.1 && vST.x < 0.2 &&
+                vST.y > 0.8 && vST.y < 0.9)
+                newD += SOURCE_SPEED * uDeltaTime;
+            // Bottom right of the screen is a sink
+            if (vST.x > 0.8 && vST.x < 0.9 &&
+                vST.y > 0.1 && vST.y < 0.2)
+                newD -= SOURCE_SPEED * uDeltaTime;
+        }
+
+        outDensity = toD(newD);
     }
 }`;
 
@@ -315,10 +311,10 @@ void main() {
     // mediump float l = max(0.0, dot(-LIGHT_DIR, n));
     // l = l * LIGHT_DIF + LIGHT_MIN;
 
-    // // outColor = COL * l;
+    // outColor = COL * l;
     outColor = COL * density;
-    // // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
+    // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
-    // // mediump vec2 mov = from(texture(uTex, vST));
-    // // outColor = vec4(mov.x * 0.25 + 0.5, mov.y * 0.25 + 0.5, 1.0, 1.0);
+    // mediump vec2 mov = from(texture(uTex, vST));
+    // outColor = vec4(mov.x * 0.25 + 0.5, mov.y * 0.25 + 0.5, 1.0, 1.0);
 }`;
