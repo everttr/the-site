@@ -11,6 +11,9 @@ let CHANNEL_ENCODING_MACROS = `
 #define VOffset 2.0
 #define VBound 4.0
 #define VBoundi 1.0 / VBound
+#define POffset 5.0
+#define PBound 10.0
+#define PBoundi 1.0 / PBound
 #define DMax 10.0
 #define DMaxi 1.0 / DMax
 #define C4 16581375.0
@@ -35,6 +38,15 @@ highp float fromD(highp vec4 d) {
         (d.b * C3i) +
         (d.a * C4i)
         ) * DMax;
+}`;
+let CHANNEL_DECODING_HELPERS_PROJECTION = `
+highp vec2 fromP(highp vec4 v) {
+    return vec2(
+        (v.r) +
+        (v.g * C2i),
+        (v.b) +
+        (v.a * C2i)
+        ) * PBound - vec2(POffset, POffset);
 }`;
 let CHANNEL_ENCODING_HELPERS = `
 highp vec4 toV(highp vec2 i) {
@@ -76,6 +88,27 @@ highp vec4 toD(highp float i) {
     o.g = t * C2;
     // channel 1 (most significant)
     o.r = i;
+    return o;
+}`;
+let CHANNEL_ENCODING_HELPERS_PROJECTION = `
+highp vec4 toP(highp vec2 i) {
+    i += vec2(POffset, POffset);
+    i *= PBoundi;
+    i = vec2(min(PBound, max(0.0, i.x)), min(PBound, max(0.0, i.y)));
+    highp float t;
+    highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
+    // dimension 1 channel 2 (least significant)
+    t = mod(i.x, C2i);
+    i.x -= t;
+    o.g = t * C2;
+    // dimension 1 channel 1 (most significant)
+    o.r = i.x;
+    // dimension 2 channel 2 (least significant)
+    t = mod(i.y, C2i);
+    i.y -= t;
+    o.a = t * C2;
+    // dimension 2 channel 1 (most significant)
+    o.b = i.y;
     return o;
 }`;
 
@@ -149,7 +182,7 @@ const highp float INIT_DENSITY_HIGH = 6.5;
 
 const highp float SOURCE_SPEED = 2.50;
 const highp float DENSITY_DIFFUSION = 10.0;
-const highp float VELOCITY_DIFFUSION = 5.0;
+const highp float VELOCITY_DIFFUSION = 0.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
 const highp float MOUSE_STRENGTH = 14.0;
@@ -161,7 +194,9 @@ const highp float sqrt2i = 1.0 / sqrt2;
 //#define ROUNDED_MOUSE_CORNERS
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
+${CHANNEL_DECODING_HELPERS_PROJECTION}
 ${CHANNEL_ENCODING_HELPERS}
+${CHANNEL_ENCODING_HELPERS_PROJECTION}
 
 void main() {
     if (uInitializeFields) {
@@ -188,10 +223,10 @@ void main() {
         highp vec2 c_0p = fromV(texture(uTexV, vST + vec2(0.0, h)));
         
         // Sample nearby "projected" values
-        highp float p_0n = fromV(texture(uTexP, vST + vec2(0.0, -h))).y;
-        highp float p_n0 = fromV(texture(uTexP, vST + vec2(-w, 0.0))).y;
-        highp float p_p0 = fromV(texture(uTexP, vST + vec2(w, 0.0))).y;
-        highp float p_0p = fromV(texture(uTexP, vST + vec2(0.0, h))).y;
+        highp float p_0n = fromP(texture(uTexP, vST + vec2(0.0, -h))).y;
+        highp float p_n0 = fromP(texture(uTexP, vST + vec2(-w, 0.0))).y;
+        highp float p_p0 = fromP(texture(uTexP, vST + vec2(w, 0.0))).y;
+        highp float p_0p = fromP(texture(uTexP, vST + vec2(0.0, h))).y;
 
         if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
             highp float vel_diffusion = VELOCITY_DIFFUSION * uDeltaTime;
@@ -203,22 +238,22 @@ void main() {
             highp float grad = -0.5 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y);
             // Output as initial values of projection variables (gradient, project)
             // (reused velocity packing code)
-            outProject = toV(vec2(grad, grad));
+            outProject = toP(vec2(grad, grad));
         }
 
 
         else if ((uSimID & SIMID_V_PROJECT_R) == SIMID_V_PROJECT_R) {
-            highp vec2 pVars = fromV(texture(uTexP, vST));
+            highp vec2 pVars = fromP(texture(uTexP, vST));
 
             // Iteratively relax each projected value to be 25% more than the average of its gradients
             // and neighboring projected values? I don't really understand this one if I'm honest
             pVars.y = (pVars.x + p_0n + p_n0 + p_p0 + p_0p) * 0.25;
 
-            outProject = toV(pVars);
+            outProject = toP(pVars);
         }
 
         else if ((uSimID & SIMID_V_PROJECT_A) == SIMID_V_PROJECT_A) {
-            highp vec2 pVars = fromV(texture(uTexP, vST));
+            highp vec2 pVars = fromP(texture(uTexP, vST));
             // Finally, move each pixel's velocity away from the gradient of its projected values
             newV.x -= 0.5 * (p_p0 - p_n0);
             newV.y -= 0.5 * (p_0p - p_0n);
