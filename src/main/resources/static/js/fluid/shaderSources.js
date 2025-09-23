@@ -149,7 +149,7 @@ const highp float INIT_DENSITY_HIGH = 6.5;
 
 const highp float SOURCE_SPEED = 2.50;
 const highp float DENSITY_DIFFUSION = 10.0;
-const highp float VELOCITY_DIFFUSION = 10.0;
+const highp float VELOCITY_DIFFUSION = 5.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
 const highp float MOUSE_STRENGTH = 14.0;
@@ -186,6 +186,12 @@ void main() {
         highp vec2 c_n0 = fromV(texture(uTexV, vST + vec2(-w, 0.0)));
         highp vec2 c_p0 = fromV(texture(uTexV, vST + vec2(w, 0.0)));
         highp vec2 c_0p = fromV(texture(uTexV, vST + vec2(0.0, h)));
+        
+        // Sample nearby "projected" values
+        highp float p_0n = fromV(texture(uTexP, vST + vec2(0.0, -h))).y;
+        highp float p_n0 = fromV(texture(uTexP, vST + vec2(-w, 0.0))).y;
+        highp float p_p0 = fromV(texture(uTexP, vST + vec2(w, 0.0))).y;
+        highp float p_0p = fromV(texture(uTexP, vST + vec2(0.0, h))).y;
 
         if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
             highp float vel_diffusion = VELOCITY_DIFFUSION * uDeltaTime;
@@ -199,26 +205,23 @@ void main() {
             // (reused velocity packing code)
             outProject = toV(vec2(grad, grad));
         }
-            
-        else if ((uSimID & SIMID_V_PROJECT_R) == SIMID_V_PROJECT_R) {
-            highp vec2 pVars = fromV(texture(uTexD, vST));
 
-            // THEN ITERATIVELY RELAXING THE "PROJECTED" VALUE OF EACH PIXEL TO BE ITS GRADIENT PLUS THE AVERAGE OF SURROUNDING PIXEL'S GRADIENTS
-            // initial value is same as calculated gradient
-            pVars.y = pVars.x + (
-                fromV(texture(uTexD, vST + vec2(w, 0))).y +
-                fromV(texture(uTexD, vST + vec2(-w, 0))).y +
-                fromV(texture(uTexD, vST + vec2(0, h))).y +
-                fromV(texture(uTexD, vST + vec2(0, -h))).y) * 0.25;
+
+        else if ((uSimID & SIMID_V_PROJECT_R) == SIMID_V_PROJECT_R) {
+            highp vec2 pVars = fromV(texture(uTexP, vST));
+
+            // Iteratively relax each projected value to be 25% more than the average of its gradients
+            // and neighboring projected values? I don't really understand this one if I'm honest
+            pVars.y = (pVars.x + p_0n + p_n0 + p_p0 + p_0p) * 0.25;
 
             outProject = toV(pVars);
         }
 
         else if ((uSimID & SIMID_V_PROJECT_A) == SIMID_V_PROJECT_A) {
-            highp vec2 pVars = fromV(texture(uTexD, vST));
-            // Finally, subtract half of each channel's gradient across projected values
-            newV.x -= 0.5 * (fromV(texture(uTexD, vST + vec2(w, 0))).x - fromV(texture(uTexD, vST + vec2(-w, 0))).x);
-            newV.y -= 0.5 * (fromV(texture(uTexD, vST + vec2(0, h))).y - fromV(texture(uTexD, vST + vec2(0, -h))).y);
+            highp vec2 pVars = fromV(texture(uTexP, vST));
+            // Finally, move each pixel's velocity away from the gradient of its projected values
+            newV.x -= 0.5 * (p_p0 - p_n0);
+            newV.y -= 0.5 * (p_0p - p_0n);
         }
 
         else if ((uSimID & SIMID_V_ADVECT) == SIMID_V_ADVECT) {
