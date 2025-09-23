@@ -118,6 +118,7 @@ void main() {
 const SHADERSTR_FLUID_SIM_FRAG = `#version 300 es
 layout(location = 0) out highp vec4 outVelocity;
 layout(location = 1) out highp vec4 outDensity;
+layout(location = 2) out highp vec4 outProject;
 
 in highp vec2 vST;
 
@@ -126,10 +127,13 @@ uniform lowp uint uSimID;
 const lowp uint SIMID_D_DIFFUSE = 1u;
 const lowp uint SIMID_D_ADVECT = 2u;
 const lowp uint SIMID_V_DIFFUSE = 4u;
-const lowp uint SIMID_V_PROJECT = 8u;
-const lowp uint SIMID_V_ADVECT = 16u;
+const lowp uint SIMID_V_PROJECT_G = 8u; // gradient
+const lowp uint SIMID_V_PROJECT_R = 16u; // relax
+const lowp uint SIMID_V_PROJECT_A = 32u; // apply
+const lowp uint SIMID_V_ADVECT = 64u;
 
 uniform sampler2D uTexV;
+uniform sampler2D uTexP;
 uniform sampler2D uTexD;
 uniform int uTexWidth;
 uniform int uTexHeight;
@@ -145,9 +149,7 @@ const highp float INIT_DENSITY_HIGH = 6.5;
 
 const highp float SOURCE_SPEED = 2.50;
 const highp float DENSITY_DIFFUSION = 10.0;
-const highp float VELOCITY_DIFFUSION = 4.0;
-const highp float VELOCITY_GRADIENT_PULL = 0.0;
-const highp float DRAG_STRENGTH = 0.00;
+const highp float VELOCITY_DIFFUSION = 10.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
 const highp float MOUSE_STRENGTH = 14.0;
@@ -171,49 +173,61 @@ void main() {
     }
 
     // Common calculations
-    highp vec2 oldV = fromV(texture(uTexV, vST));
-    // Find where we will source our fluid from
+    highp vec2 newV = fromV(texture(uTexV, vST));
     highp float w = 1.0 / float(uTexWidth);
     highp float h = 1.0 / float(uTexHeight);
 
     // Velocity calculation
-    // (currently not iterative, so only happens on final step)
-    highp vec2 newV = fromV(texture(uTexV, vST));
     {        
-        if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
-            // Get velocities around current for diffusion
-            // (n is -1, p is +1)
-            // ((clipping isn't a problem b/c of wrapping))
-            highp vec2 c_0n = fromV(texture(uTexV, vST + vec2(0.0, -h)));
-            highp vec2 c_n0 = fromV(texture(uTexV, vST + vec2(-w, 0.0)));
-            highp vec2 c_00 = fromV(texture(uTexV, vST));
-            highp vec2 c_p0 = fromV(texture(uTexV, vST + vec2(w, 0.0)));
-            highp vec2 c_0p = fromV(texture(uTexV, vST + vec2(0.0, h)));
+        // Get velocities around current for & projection
+        // (n is -1, p is +1)
+        // ((clipping isn't a problem b/c of wrapping))
+        highp vec2 c_0n = fromV(texture(uTexV, vST + vec2(0.0, -h)));
+        highp vec2 c_n0 = fromV(texture(uTexV, vST + vec2(-w, 0.0)));
+        highp vec2 c_p0 = fromV(texture(uTexV, vST + vec2(w, 0.0)));
+        highp vec2 c_0p = fromV(texture(uTexV, vST + vec2(0.0, h)));
 
+        if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
             highp float vel_diffusion = VELOCITY_DIFFUSION * uDeltaTime;
-            newV = (c_00 + vel_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * vel_diffusion);
+            newV = (newV + vel_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * vel_diffusion);
         }
 
-        else if ((uSimID & SIMID_V_PROJECT) == SIMID_V_PROJECT) {
-            // // Sample velocity gradient around pixel
-            // highp vec2 gradient = vec2(
-            //     fromV(texture(uTexV, vST + vec2(w, 0.0))).x - fromV(texture(uTexV, vST + vec2(-w, 0.0))).x,
-            //     fromV(texture(uTexV, vST + vec2(0.0, h))).y - fromV(texture(uTexV, vST + vec2(0.0, -h))).y);
-            // // Move it towards the gradient
-            // newV += gradient * VELOCITY_GRADIENT_PULL * uDeltaTime;
+        else if ((uSimID & SIMID_V_PROJECT_G) == SIMID_V_PROJECT_G) {
+            // Find velocity gradient around/at pixel
+            highp float grad = -0.5 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y);
+            // Output as initial values of projection variables (gradient, project)
+            // (reused velocity packing code)
+            outProject = toV(vec2(grad, grad));
+        }
+            
+        else if ((uSimID & SIMID_V_PROJECT_R) == SIMID_V_PROJECT_R) {
+            highp vec2 pVars = fromV(texture(uTexD, vST));
+
+            // THEN ITERATIVELY RELAXING THE "PROJECTED" VALUE OF EACH PIXEL TO BE ITS GRADIENT PLUS THE AVERAGE OF SURROUNDING PIXEL'S GRADIENTS
+            // initial value is same as calculated gradient
+            pVars.y = pVars.x + (
+                fromV(texture(uTexD, vST + vec2(w, 0))).y +
+                fromV(texture(uTexD, vST + vec2(-w, 0))).y +
+                fromV(texture(uTexD, vST + vec2(0, h))).y +
+                fromV(texture(uTexD, vST + vec2(0, -h))).y) * 0.25;
+
+            outProject = toV(pVars);
+        }
+
+        else if ((uSimID & SIMID_V_PROJECT_A) == SIMID_V_PROJECT_A) {
+            highp vec2 pVars = fromV(texture(uTexD, vST));
+            // Finally, subtract half of each channel's gradient across projected values
+            newV.x -= 0.5 * (fromV(texture(uTexD, vST + vec2(w, 0))).x - fromV(texture(uTexD, vST + vec2(-w, 0))).x);
+            newV.y -= 0.5 * (fromV(texture(uTexD, vST + vec2(0, h))).y - fromV(texture(uTexD, vST + vec2(0, -h))).y);
         }
 
         else if ((uSimID & SIMID_V_ADVECT) == SIMID_V_ADVECT) {
             // Get velocity around sample for advection
             // Interpolation is already done for us!
-            // newV = fromV(texture(uTexV, vST + oldV * uDeltaTime / vec2(w, h)));
-            // newV = fromV(texture(uTexV, vST + vec2(w, h)));
+            newV = fromV(texture(uTexV, vST + newV * uDeltaTime / vec2(w, h)));
 
             // (below is non-advection stuff that's just here so it's only run once per step)
-            
-            // Apply some slowdown
-            newV = mix(newV, vec2(0.0, 0.0), min(DRAG_STRENGTH * uDeltaTime, 1.0));
-            
+                        
             // Mouse calculation
             // Get proximity to mouse (capsule-shaped influence)
             highp vec2 mouseEnd = uMouseStart + uMouseDir * uMouseMag;

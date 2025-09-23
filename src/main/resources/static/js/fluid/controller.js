@@ -13,12 +13,18 @@ const canvasInactiveColor = "#77b2bd"
 const SIMID_D_DIFFUSE = 1;
 const SIMID_D_ADVECT = 2;
 const SIMID_V_DIFFUSE = 4;
-const SIMID_V_PROJECT = 8;
-const SIMID_V_ADVECT = 16;
-const SIM_V_DIFFUSE_COUNT = 3; // # of iterations after these finish
-const SIM_V_PROJECT1_COUNT = 2 + SIM_V_DIFFUSE_COUNT;
-const SIM_V_ADVECT_COUNT = 1 + SIM_V_PROJECT1_COUNT;
-const SIM_V_PROJECT2_COUNT = 2 + SIM_V_ADVECT_COUNT;
+const SIMID_V_PROJECT_G = 8; // gradient
+const SIMID_V_PROJECT_R = 16; // relax
+const SIMID_V_PROJECT_A = 32; // apply
+const SIMID_V_ADVECT = 64;
+const SIM_V_DIFFUSE_COUNT = 2; // # of iterations after these finish
+const SIM_V_PROJECT1_G_COUNT = 1 + SIM_V_DIFFUSE_COUNT;
+const SIM_V_PROJECT1_R_COUNT = 3 + SIM_V_PROJECT1_G_COUNT;
+const SIM_V_PROJECT1_A_COUNT = 1 + SIM_V_PROJECT1_R_COUNT;
+const SIM_V_ADVECT_COUNT = 1 + SIM_V_PROJECT1_A_COUNT;
+const SIM_V_PROJECT2_G_COUNT = 1 + SIM_V_ADVECT_COUNT;
+const SIM_V_PROJECT2_R_COUNT = 3 + SIM_V_PROJECT2_G_COUNT;
+const SIM_V_PROJECT2_A_COUNT = 1 + SIM_V_PROJECT2_R_COUNT;
 const DEBUG_VERBOSITY = 2;
 // Plain Globals
 var canvas;
@@ -44,6 +50,8 @@ var shaders = {
     },
     simTexV1: null,
     simTexV2: null,
+    simTexP1: null, // extra buffer for intermediate values used in the velocity's "project" step
+    simTexP2: null,
     simTexD1: null,
     simTexD2: null,
     simFB: null,
@@ -59,6 +67,8 @@ var simTexDPrev = null;
 var simTexDNext = null;
 var simTexVPrev = null;
 var simTexVNext = null;
+var simTexPPrev = null;
+var simTexPNext = null;
 var firstRender = true;
 var lastTimeDelta;
 var curMousePos = null;
@@ -135,6 +145,8 @@ function updateSim(deltaT) {
         simTexDNext = shaders.simTexD2;
         simTexVPrev = shaders.simTexV1;
         simTexVNext = shaders.simTexV2;
+        simTexPPrev = shaders.simTexP1;
+        simTexPNext = shaders.simTexP2;
     }
 
     // Calculate mouse parameters
@@ -162,7 +174,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
 
     // Specify we render to framebuffer/ sim textures
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, shaders.simFB);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2]);
     gl.viewport(0, 0, curSimW, curSimH);
 
     // Clear framebuffer
@@ -220,15 +232,19 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
     // Do a certain number of iterative steps to make it less chaotic
-    let iterations = SIM_V_PROJECT2_COUNT;
+    let iterations = SIM_V_PROJECT2_A_COUNT;
     for (let i = 1; i <= iterations; i++) {
         let simStepID =
             (i < iterations ? SIMID_D_DIFFUSE : 0) | // diffuse density on all but last iteration
             (i == iterations ? SIMID_D_ADVECT : 0) | // only advect density on final iteration
             (i <= SIM_V_DIFFUSE_COUNT ? SIMID_V_DIFFUSE : 0) | // first vel iterations diffuse
-            (i > SIM_V_DIFFUSE_COUNT && i <= SIM_V_PROJECT1_COUNT ? SIMID_V_PROJECT : 0) | // next vel iterations project
+            (i > SIM_V_DIFFUSE_COUNT && i <= SIM_V_PROJECT1_G_COUNT ? SIMID_V_PROJECT_G : 0) | // next vel iterations project
+            (i > SIM_V_PROJECT1_G_COUNT && i <= SIM_V_PROJECT1_R_COUNT ? SIMID_V_PROJECT_R : 0) | // next vel iterations project
+            (i > SIM_V_PROJECT1_R_COUNT && i <= SIM_V_PROJECT1_A_COUNT ? SIMID_V_PROJECT_A : 0) | // next vel iterations project
             (i == SIM_V_ADVECT_COUNT ? SIMID_V_ADVECT : 0) | // then advect once
-            (i > SIM_V_ADVECT_COUNT ? SIMID_V_PROJECT : 0); // final iterations project again
+            (i > SIM_V_ADVECT_COUNT && i <= SIM_V_PROJECT2_G_COUNT ? SIMID_V_PROJECT_G : 0); // final iterations project again
+            (i > SIM_V_PROJECT2_G_COUNT && i <= SIM_V_PROJECT2_R_COUNT ? SIMID_V_PROJECT_R : 0); // final iterations project again
+            (i > SIM_V_PROJECT2_R_COUNT && i <= SIM_V_PROJECT2_A_COUNT ? SIMID_V_PROJECT_A : 0); // final iterations project again
         gl.uniform1ui(shaders.sim.uniformLocs.simStepID, simStepID);
         
         // output/framebuffer
@@ -236,6 +252,8 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, simTexVNext, 0);
         gl.bindTexture(gl.TEXTURE_2D, simTexDNext);
         gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, simTexDNext, 0);
+        gl.bindTexture(gl.TEXTURE_2D, simTexPNext);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, simTexPNext, 0);
         // input/sampler
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, simTexVPrev);
@@ -243,6 +261,9 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, simTexDPrev);
         gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, simTexPPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.projectionSampler, 2);
         // Clear framebuffer
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -256,6 +277,9 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         temp = simTexDNext;
         simTexDNext = simTexDPrev;
         simTexDPrev = temp;
+        temp = simTexPNext; // projection ones only matter some of the time, but this costs nothing
+        simTexPNext = simTexPPrev;
+        simTexPPrev = temp;
 
         if (firstRender)
             break;
@@ -438,6 +462,7 @@ function initShaderPrograms() {
     let b1 = createShaderProgram("Fluid Simulation", shaders.sim,
         SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
         null, [
+            ["projectionSampler", "uTexP"],
             ["deltaTime", "uDeltaTime"],
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
@@ -528,6 +553,8 @@ function createSimTextures(resX, resY) {
     shaders.simTexV2 = createSimTex(shaders.simTexV2, resX, resY);
     shaders.simTexD1 = createSimTex(shaders.simTexD1, resX, resY);
     shaders.simTexD2 = createSimTex(shaders.simTexD2, resX, resY);
+    shaders.simTexP1 = createSimTex(shaders.simTexP1, resX, resY);
+    shaders.simTexP2 = createSimTex(shaders.simTexP2, resX, resY);
 
     // Make sure it initializes on the first render
     firstRender = true;
