@@ -177,12 +177,13 @@ uniform highp vec2 uMouseDir;
 uniform highp float uMouseMag;
 
 const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
-const highp float INIT_DENSITY_LOW = 2.0;
-const highp float INIT_DENSITY_HIGH = 6.5;
+const highp float INIT_DENSITY_LOW = 0.0;
+const highp float INIT_DENSITY_HIGH = 10.0;
 
+const highp float SPIRAL_STRENGTH = 0.002;
 const highp float SOURCE_SPEED = 2.50;
 const highp float DENSITY_DIFFUSION = 10.0;
-const highp float VELOCITY_DIFFUSION = 0.0;
+const highp float VELOCITY_DIFFUSION = 25.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
 const highp float MOUSE_STRENGTH = 14.0;
@@ -288,6 +289,14 @@ void main() {
 
             // Add in the mouse movement
             newV += uMouseDir * uMouseMag * mouseInfluence;
+
+            // FOR DEBUG FLOW!
+            // Middle part swirls in a spiral
+            highp vec2 toCenter = vec2(0.5, 0.5) - vST;
+            highp float centerDist = length(toCenter);
+            toCenter /= centerDist;
+            if (centerDist <= 0.25)
+                newV += vec2(toCenter.y, -toCenter.x) * SPIRAL_STRENGTH * uDeltaTime;
         }
 
         outVelocity = toV(newV);
@@ -357,12 +366,12 @@ ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 
 void main() {
-    mediump vec2 vel = fromV(texture(uTexV, vST));
-    outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
-
-    // // Sample simulation at pixel
     // mediump vec2 vel = fromV(texture(uTexV, vST));
-    // mediump float density = fromD(texture(uTexD, vST));
+    // outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
+
+    // Sample simulation at pixel
+    mediump vec2 vel = fromV(texture(uTexV, vST));
+    mediump float density = fromD(texture(uTexD, vST));
 
     // // Create a normal of the fluid's surface
     // mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
@@ -372,7 +381,7 @@ void main() {
     // l = l * LIGHT_DIF + LIGHT_MIN;
 
     // outColor = COL * l;
-    // outColor = COL * density;
+    outColor = COL * density;
     // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
     // mediump vec2 mov = from(texture(uTex, vST));
