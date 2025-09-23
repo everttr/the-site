@@ -249,9 +249,6 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         // Update sim
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-        if (firstRender)
-            break;
-
         // Swap input/output buffers
         var temp = simTexVNext;
         simTexVNext = simTexVPrev;
@@ -259,6 +256,9 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         temp = simTexDNext;
         simTexDNext = simTexDPrev;
         simTexDPrev = temp;
+
+        if (firstRender)
+            break;
     }
 
     if (firstRender) {

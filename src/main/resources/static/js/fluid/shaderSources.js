@@ -48,7 +48,7 @@ highp vec4 toV(highp vec2 i) {
     i.x -= t;
     o.g = t * C2;
     // dimension 1 channel 1 (most significant)
-    o.r = i.y;
+    o.r = i.x;
     // dimension 2 channel 2 (least significant)
     t = mod(i.y, C2i);
     i.y -= t;
@@ -150,13 +150,13 @@ const highp float VELOCITY_GRADIENT_PULL = 0.0;
 const highp float DRAG_STRENGTH = 0.00;
 
 const highp float MOUSE_MAX_DIST = 0.03;
-const highp float MOUSE_STRENGTH = 1.0;
+const highp float MOUSE_STRENGTH = 14.0;
 const highp float MOUSE_FALLOFF_EXP = 1.25;
 
 const highp float sqrt2 = 1.41421356237;
 const highp float sqrt2i = 1.0 / sqrt2;
 
-#define DISABLE_ROUNDED_CORNERS
+//#define ROUNDED_MOUSE_CORNERS
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_ENCODING_HELPERS}
@@ -219,14 +219,14 @@ void main() {
             highp vec2 mouseEnd = uMouseStart + uMouseDir * uMouseMag;
             highp vec2 temp = vST - uMouseStart; // relative offset
             highp float alongLine = dot(temp, uMouseDir); // distance/shadow along mouse dir
-            temp = uMouseStart + uMouseDir * dot(temp, uMouseDir); // closest point on line
+            temp = uMouseStart + uMouseDir * alongLine; // closest point on line
             highp float lineProx = alongLine > 0.0 && alongLine < uMouseMag ? distance(vST, temp) : MOUSE_MAX_DIST;
-            #ifndef ROUNDED_MOUSE_CORNERS
+            #ifdef ROUNDED_MOUSE_CORNERS
             highp float circleProxStart = distance(vST, uMouseStart);
             highp float circleProxEnd = distance(vST, mouseEnd);
             #endif
             highp float mouseInfluence =
-            #ifndef ROUNDED_MOUSE_CORNERS
+            #ifdef ROUNDED_MOUSE_CORNERS
                 min(lineProx, min(circleProxStart, circleProxEnd));
             #else
                 lineProx;
@@ -235,7 +235,7 @@ void main() {
             mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * MOUSE_STRENGTH;
 
             // Add in the mouse movement
-            newV += uMouseDir * mouseInfluence;
+            newV += uMouseDir * uMouseMag * mouseInfluence;
         }
 
         outVelocity = toV(newV);
@@ -306,7 +306,7 @@ ${CHANNEL_DECODING_HELPERS}
 
 void main() {
     mediump vec2 vel = fromV(texture(uTexV, vST));
-    outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.0, 1.0);
+    outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
 
     // // Sample simulation at pixel
     // mediump vec2 vel = fromV(texture(uTexV, vST));
