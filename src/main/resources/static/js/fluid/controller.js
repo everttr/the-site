@@ -17,7 +17,9 @@ const SIMID_V_PROJECT_G = 8; // gradient
 const SIMID_V_PROJECT_R = 16; // relax
 const SIMID_V_PROJECT_A = 32; // apply
 const SIMID_V_ADVECT = 64;
-const SIM_V_DIFFUSE_COUNT = 2; // # of iterations after these finish
+const SIMID_INPUTS = 128;
+const SIM_INPUTS_COUNT = 1; // # of iterations after these finish
+const SIM_V_DIFFUSE_COUNT = 2 + SIM_INPUTS_COUNT;
 const SIM_V_PROJECT1_G_COUNT = 1 + SIM_V_DIFFUSE_COUNT;
 const SIM_V_PROJECT1_R_COUNT = 3 + SIM_V_PROJECT1_G_COUNT;
 const SIM_V_PROJECT1_A_COUNT = 1 + SIM_V_PROJECT1_R_COUNT;
@@ -235,9 +237,12 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     let iterations = SIM_V_PROJECT2_A_COUNT;
     for (let i = 1; i <= iterations; i++) {
         let simStepID =
-            (i < iterations ? SIMID_D_DIFFUSE : 0) | // diffuse density on all but last iteration
+            (i <= SIM_INPUTS_COUNT ? SIMID_INPUTS : 0) | // handle inputs on first iteration
+
+            (i > SIM_INPUTS_COUNT && i < iterations ? SIMID_D_DIFFUSE : 0) | // diffuse density on all but last iteration
             (i == iterations ? SIMID_D_ADVECT : 0) | // only advect density on final iteration
-            (i <= SIM_V_DIFFUSE_COUNT ? SIMID_V_DIFFUSE : 0) | // first vel iterations diffuse
+            
+            (i > SIM_INPUTS_COUNT && i <= SIM_V_DIFFUSE_COUNT ? SIMID_V_DIFFUSE : 0) | // first vel iterations diffuse
             (i > SIM_V_DIFFUSE_COUNT && i <= SIM_V_PROJECT1_G_COUNT ? SIMID_V_PROJECT_G : 0) | // next, vel iteration projection part 1
             (i > SIM_V_PROJECT1_G_COUNT && i <= SIM_V_PROJECT1_R_COUNT ? SIMID_V_PROJECT_R : 0) | // part 2
             (i > SIM_V_PROJECT1_R_COUNT && i <= SIM_V_PROJECT1_A_COUNT ? SIMID_V_PROJECT_A : 0) | // part 3
