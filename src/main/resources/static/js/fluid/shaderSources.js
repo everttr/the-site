@@ -8,13 +8,13 @@
 // A bit hacky, but it'll have to work.
 let FORCE_ONE_CHANNEL_ENCODING = false;
 let CHANNEL_ENCODING_MACROS = `
-#define VOffset 2.0
-#define VBound 4.0
+#define VOffset 0.25
+#define VBound 0.5
 #define VBoundi 1.0 / VBound
 #define POffset 5.0
 #define PBound 10.0
 #define PBoundi 1.0 / PBound
-#define DMax 10.0
+#define DMax 100.0
 #define DMaxi 1.0 / DMax
 #define C4 16581375.0
 #define C4i (1.0 / C4)
@@ -52,7 +52,7 @@ let CHANNEL_ENCODING_HELPERS = `
 highp vec4 toV(highp vec2 i) {
     i += vec2(VOffset, VOffset);
     i *= VBoundi;
-    i = vec2(min(VBound, max(0.0, i.x)), min(VBound, max(0.0, i.y)));
+    i = vec2(clamp(i.x, 0.0, 1.0), clamp(i.y, 0.0, 1.0));
     highp float t;
     highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
     // dimension 1 channel 2 (least significant)
@@ -71,7 +71,7 @@ highp vec4 toV(highp vec2 i) {
 }
 highp vec4 toD(highp float i) {
     i *= DMaxi;
-    i = min(DMax, max(0.0, i));
+    i = clamp(i, 0.0, 1.0);
     highp float t;
     highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
     // channel 4 (least significant)
@@ -94,7 +94,7 @@ let CHANNEL_ENCODING_HELPERS_PROJECTION = `
 highp vec4 toP(highp vec2 i) {
     i += vec2(POffset, POffset);
     i *= PBoundi;
-    i = vec2(min(PBound, max(0.0, i.x)), min(PBound, max(0.0, i.y)));
+    i = vec2(clamp(i.x, 0.0, 1.0), clamp(i.y, 0.0, 1.0));
     highp float t;
     highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
     // dimension 1 channel 2 (least significant)
@@ -182,12 +182,12 @@ const highp float INIT_DENSITY_LOW = 0.0;
 const highp float INIT_DENSITY_HIGH = 10.0;
 
 const highp float SPIRAL_STRENGTH = 0.0;
-const highp float SOURCE_SPEED = 2.50;
-const highp float DENSITY_DIFFUSION = 10.0;
+const highp float SOURCE_SPEED = 0.00;
+const highp float DENSITY_DIFFUSION = 25.0;
 const highp float VELOCITY_DIFFUSION = 25.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
-const highp float MOUSE_STRENGTH = 14.0;
+const highp float MOUSE_STRENGTH = 1.0;
 const highp float MOUSE_FALLOFF_EXP = 1.25;
 
 const highp float sqrt2 = 1.41421356237;
@@ -366,12 +366,12 @@ ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 
 void main() {
-    mediump vec2 vel = fromV(texture(uTexV, vST));
-    outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
-
-    // // Sample simulation at pixel
     // mediump vec2 vel = fromV(texture(uTexV, vST));
-    // mediump float density = fromD(texture(uTexD, vST));
+    // outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
+
+    // Sample simulation at pixel
+    mediump vec2 vel = fromV(texture(uTexV, vST));
+    mediump float density = fromD(texture(uTexD, vST));
 
     // // Create a normal of the fluid's surface
     // mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
@@ -381,7 +381,7 @@ void main() {
     // l = l * LIGHT_DIF + LIGHT_MIN;
 
     // outColor = COL * l;
-    // outColor = COL * pow(density, 0.5);
+    outColor = COL * sqrt(density);
     // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
     // mediump vec2 mov = from(texture(uTex, vST));
