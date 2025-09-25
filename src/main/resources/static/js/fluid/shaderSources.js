@@ -336,7 +336,7 @@ void main() {
             // Get density around sample for advection
             // Interpolation is already done for us!
             // (velocity sample is safe to use because sampled after done relaxing)
-            newD = fromD(texture(uTexD, vST + newV * uDeltaTime / vec2(w, h)));
+            newD = fromD(texture(uTexD, vST - newV * uDeltaTime / vec2(w, h)));
         }
 
         outDensity = toD(newD);
@@ -366,12 +366,12 @@ ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 
 void main() {
-    // mediump vec2 vel = fromV(texture(uTexV, vST));
-    // outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
-
-    // Sample simulation at pixel
     mediump vec2 vel = fromV(texture(uTexV, vST));
-    mediump float density = fromD(texture(uTexD, vST));
+    outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
+
+    // // Sample simulation at pixel
+    // mediump vec2 vel = fromV(texture(uTexV, vST));
+    // mediump float density = fromD(texture(uTexD, vST));
 
     // // Create a normal of the fluid's surface
     // mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
@@ -381,7 +381,7 @@ void main() {
     // l = l * LIGHT_DIF + LIGHT_MIN;
 
     // outColor = COL * l;
-    outColor = COL * pow(density, 0.5);
+    // outColor = COL * pow(density, 0.5);
     // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
     // mediump vec2 mov = from(texture(uTex, vST));
