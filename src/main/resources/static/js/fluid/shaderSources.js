@@ -305,7 +305,7 @@ void main() {
 
     // Density calculation
     {
-        highp float newD = 0.0;
+        highp float newD = fromD(texture(uTexD, vST));
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
             // FOR DEBUG FLOW!
@@ -325,12 +325,11 @@ void main() {
             // ((clipping isn't a problem b/c of wrapping))
             highp float c_0n = fromD(texture(uTexD, vST + vec2(0.0, -h)));
             highp float c_n0 = fromD(texture(uTexD, vST + vec2(-w, 0.0)));
-            highp float c_00 = fromD(texture(uTexD, vST));
             highp float c_p0 = fromD(texture(uTexD, vST + vec2(w, 0.0)));
             highp float c_0p = fromD(texture(uTexD, vST + vec2(0.0, h)));
 
             highp float dens_diffusion = DENSITY_DIFFUSION * uDeltaTime;
-            newD = (c_00 + dens_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * dens_diffusion);
+            newD = (newD + dens_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * dens_diffusion);
         }
 
         else if ((uSimID & SIMID_D_ADVECT) == SIMID_D_ADVECT) {

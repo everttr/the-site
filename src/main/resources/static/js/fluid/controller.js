@@ -247,8 +247,8 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
             (i > SIM_V_PROJECT1_G_COUNT && i <= SIM_V_PROJECT1_R_COUNT ? SIMID_V_PROJECT_R : 0) | // part 2
             (i > SIM_V_PROJECT1_R_COUNT && i <= SIM_V_PROJECT1_A_COUNT ? SIMID_V_PROJECT_A : 0) | // part 3
             (i == SIM_V_ADVECT_COUNT ? SIMID_V_ADVECT : 0) | // then advect once
-            (i > SIM_V_ADVECT_COUNT && i <= SIM_V_PROJECT2_G_COUNT ? SIMID_V_PROJECT_G : 0); // final iterations project part 1
-            (i > SIM_V_PROJECT2_G_COUNT && i <= SIM_V_PROJECT2_R_COUNT ? SIMID_V_PROJECT_R : 0); // part 2
+            (i > SIM_V_ADVECT_COUNT && i <= SIM_V_PROJECT2_G_COUNT ? SIMID_V_PROJECT_G : 0) | // final iterations project part 1
+            (i > SIM_V_PROJECT2_G_COUNT && i <= SIM_V_PROJECT2_R_COUNT ? SIMID_V_PROJECT_R : 0) | // part 2
             (i > SIM_V_PROJECT2_R_COUNT && i <= SIM_V_PROJECT2_A_COUNT ? SIMID_V_PROJECT_A : 0); // part 3
         gl.uniform1ui(shaders.sim.uniformLocs.simStepID, simStepID);
         
