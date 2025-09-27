@@ -8,8 +8,8 @@
 // A bit hacky, but it'll have to work.
 let FORCE_ONE_CHANNEL_ENCODING = false;
 let CHANNEL_ENCODING_MACROS = `
-#define VOffset 0.25
-#define VBound 0.5
+#define VOffset 0.05
+#define VBound 0.1
 #define VBoundi 1.0 / VBound
 #define POffset 5.0
 #define PBound 10.0
@@ -182,18 +182,18 @@ const highp float INIT_DENSITY_LOW = 0.0;
 const highp float INIT_DENSITY_HIGH = 10.0;
 
 const highp float SPIRAL_STRENGTH = 0.0;
-const highp float SOURCE_SPEED = 0.00;
-const highp float DENSITY_DIFFUSION = 25.0;
-const highp float VELOCITY_DIFFUSION = 25.0;
+const highp float SOURCE_SPEED = 2.50;
+const highp float DENSITY_DIFFUSION = 1.0;
+const highp float VELOCITY_DIFFUSION = 2.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
 const highp float MOUSE_STRENGTH = 1.0;
-const highp float MOUSE_FALLOFF_EXP = 1.25;
+const highp float MOUSE_FALLOFF_EXP = 0.8;
 
 const highp float sqrt2 = 1.41421356237;
 const highp float sqrt2i = 1.0 / sqrt2;
 
-//#define ROUNDED_MOUSE_CORNERS
+#define ROUNDED_MOUSE_CORNERS
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_DECODING_HELPERS_PROJECTION}
@@ -231,6 +231,9 @@ void main() {
         highp float p_0p = fromP(texture(uTexP, vST + vec2(0.0, h))).y;
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
+            // Save initial velocity for diffuse step
+            outProject = toV(newV);
+
             // Mouse calculation
             // Get proximity to mouse (capsule-shaped influence)
             highp vec2 mouseEnd = uMouseStart + uMouseDir * uMouseMag;
@@ -264,8 +267,13 @@ void main() {
         }
 
         else if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
+            highp vec4 initialVel = texture(uTexP, vST);
+
             highp float vel_diffusion = VELOCITY_DIFFUSION * uDeltaTime;
-            newV = (newV + vel_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * vel_diffusion);
+            newV = (fromV(initialVel) + vel_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * vel_diffusion);
+
+            // Pass on start-of-step velocity to next diffuse iteration
+            outProject = initialVel;
         }
 
         else if ((uSimID & SIMID_V_PROJECT_G) == SIMID_V_PROJECT_G) {
@@ -273,9 +281,8 @@ void main() {
             highp float grad = -0.5 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y);
             // Output as initial values of projection variables (gradient, project)
             // (reused velocity packing code)
-            outProject = toP(vec2(grad, grad));
+            outProject = toP(vec2(grad, grad)); // (in model code, project starts at 0.0. I think this is more efficient for fewer iterations)
         }
-
 
         else if ((uSimID & SIMID_V_PROJECT_R) == SIMID_V_PROJECT_R) {
             highp vec2 pVars = fromP(texture(uTexP, vST));
@@ -320,6 +327,8 @@ void main() {
         }
 
         else if ((uSimID & SIMID_D_DIFFUSE) == SIMID_D_DIFFUSE) {
+            // TODO: test with YET ANOTHER BUFFER for temp initial density storing
+
             // Get density around current for diffusion
             // (n is -1, p is +1)
             // ((clipping isn't a problem b/c of wrapping))

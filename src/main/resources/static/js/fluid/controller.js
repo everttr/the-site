@@ -52,7 +52,7 @@ var shaders = {
     },
     simTexV1: null,
     simTexV2: null,
-    simTexP1: null, // extra buffer for intermediate values used in the velocity's "project" step
+    simTexP1: null, // extra buffer for intermediate values used in the velocity calculations
     simTexP2: null,
     simTexD1: null,
     simTexD2: null,
@@ -282,7 +282,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         temp = simTexDNext;
         simTexDNext = simTexDPrev;
         simTexDPrev = temp;
-        temp = simTexPNext; // projection ones only matter some of the time, but this costs nothing
+        temp = simTexPNext; // temp ones only matter some of the time, but this costs nothing
         simTexPNext = simTexPPrev;
         simTexPPrev = temp;
 
