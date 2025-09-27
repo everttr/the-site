@@ -396,6 +396,8 @@ function init() {
             timePrev = new Date().valueOf() - lastTimeDelta; // start counting from now!
             focused = true;
             if (DEBUG_VERBOSITY >= 2) console.log("Focused window");
+            // Also reset stored mouse position so it doesn't drag from where it was long ago
+            prevMousePos = null;
             // Also have to start the rendering loop back up again
             tryUpdateRepeating();
         })
