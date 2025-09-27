@@ -151,7 +151,8 @@ void main() {
 const SHADERSTR_FLUID_SIM_FRAG = `#version 300 es
 layout(location = 0) out highp vec4 outVelocity;
 layout(location = 1) out highp vec4 outDensity;
-layout(location = 2) out highp vec4 outProject;
+layout(location = 2) out highp vec4 outVelocityTemp;
+layout(location = 3) out highp vec4 outDensityTemp;
 
 in highp vec2 vST;
 
@@ -167,8 +168,9 @@ const lowp uint SIMID_V_ADVECT = 64u;
 const lowp uint SIMID_INPUTS = 128u;
 
 uniform sampler2D uTexV;
-uniform sampler2D uTexP;
+uniform sampler2D uTexVTemp;
 uniform sampler2D uTexD;
+uniform sampler2D uTexDTemp;
 uniform int uTexWidth;
 uniform int uTexHeight;
 
@@ -225,14 +227,14 @@ void main() {
         highp vec2 c_0p = fromV(texture(uTexV, vST + vec2(0.0, h)));
         
         // Sample nearby "projected" values
-        highp float p_0n = fromP(texture(uTexP, vST + vec2(0.0, -h))).y;
-        highp float p_n0 = fromP(texture(uTexP, vST + vec2(-w, 0.0))).y;
-        highp float p_p0 = fromP(texture(uTexP, vST + vec2(w, 0.0))).y;
-        highp float p_0p = fromP(texture(uTexP, vST + vec2(0.0, h))).y;
+        highp float p_0n = fromP(texture(uTexVTemp, vST + vec2(0.0, -h))).y;
+        highp float p_n0 = fromP(texture(uTexVTemp, vST + vec2(-w, 0.0))).y;
+        highp float p_p0 = fromP(texture(uTexVTemp, vST + vec2(w, 0.0))).y;
+        highp float p_0p = fromP(texture(uTexVTemp, vST + vec2(0.0, h))).y;
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
             // Save initial velocity for diffuse step
-            outProject = toV(newV);
+            outVelocityTemp = toV(newV);
 
             // Mouse calculation
             // Get proximity to mouse (capsule-shaped influence)
@@ -267,13 +269,13 @@ void main() {
         }
 
         else if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
-            highp vec4 initialVel = texture(uTexP, vST);
+            highp vec4 initialVel = texture(uTexVTemp, vST);
 
             highp float vel_diffusion = VELOCITY_DIFFUSION * uDeltaTime;
             newV = (fromV(initialVel) + vel_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * vel_diffusion);
 
             // Pass on start-of-step velocity to next diffuse iteration
-            outProject = initialVel;
+            outVelocityTemp = initialVel;
         }
 
         else if ((uSimID & SIMID_V_PROJECT_G) == SIMID_V_PROJECT_G) {
@@ -281,21 +283,21 @@ void main() {
             highp float grad = -0.5 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y);
             // Output as initial values of projection variables (gradient, project)
             // (reused velocity packing code)
-            outProject = toP(vec2(grad, grad)); // (in model code, project starts at 0.0. I think this is more efficient for fewer iterations)
+            outVelocityTemp = toP(vec2(grad, grad)); // (in model code, project starts at 0.0. I think this is more efficient for fewer iterations)
         }
 
         else if ((uSimID & SIMID_V_PROJECT_R) == SIMID_V_PROJECT_R) {
-            highp vec2 pVars = fromP(texture(uTexP, vST));
+            highp vec2 pVars = fromP(texture(uTexVTemp, vST));
 
             // Iteratively relax each projected value to be 25% more than the average of its gradients
             // and neighboring projected values? I don't really understand this one if I'm honest
             pVars.y = (pVars.x + p_0n + p_n0 + p_p0 + p_0p) * 0.25;
 
-            outProject = toP(pVars);
+            outVelocityTemp = toP(pVars);
         }
 
         else if ((uSimID & SIMID_V_PROJECT_A) == SIMID_V_PROJECT_A) {
-            highp vec2 pVars = fromP(texture(uTexP, vST));
+            highp vec2 pVars = fromP(texture(uTexVTemp, vST));
             // Finally, move each pixel's velocity away from the gradient of its projected values
             newV.x -= 0.5 * (p_p0 - p_n0);
             newV.y -= 0.5 * (p_0p - p_0n);
@@ -324,11 +326,12 @@ void main() {
             if (vST.x > 0.8 && vST.x < 0.9 &&
                 vST.y > 0.1 && vST.y < 0.2)
                 newD -= SOURCE_SPEED * uDeltaTime;
+
+            // Write initial density for diffusion steps to use
+            outDensityTemp = toD(newD);
         }
 
         else if ((uSimID & SIMID_D_DIFFUSE) == SIMID_D_DIFFUSE) {
-            // TODO: test with YET ANOTHER BUFFER for temp initial density storing
-
             // Get density around current for diffusion
             // (n is -1, p is +1)
             // ((clipping isn't a problem b/c of wrapping))
@@ -338,7 +341,7 @@ void main() {
             highp float c_0p = fromD(texture(uTexD, vST + vec2(0.0, h)));
 
             highp float dens_diffusion = DENSITY_DIFFUSION * uDeltaTime;
-            newD = (newD + dens_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * dens_diffusion);
+            newD = (fromD(texture(uTexDTemp, vST)) + dens_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * dens_diffusion);
         }
 
         else if ((uSimID & SIMID_D_ADVECT) == SIMID_D_ADVECT) {

@@ -52,10 +52,11 @@ var shaders = {
     },
     simTexV1: null,
     simTexV2: null,
-    simTexP1: null, // extra buffer for intermediate values used in the velocity calculations
-    simTexP2: null,
+    simTexVTemp1: null, // extra buffer for intermediate values used in the velocity calculations
+    simTexVTemp2: null,
     simTexD1: null,
     simTexD2: null,
+    simTexDTemp: null,
     simFB: null,
 }
 var enabled;
@@ -69,8 +70,8 @@ var simTexDPrev = null;
 var simTexDNext = null;
 var simTexVPrev = null;
 var simTexVNext = null;
-var simTexPPrev = null;
-var simTexPNext = null;
+var simTexVTempPrev = null;
+var simTexVTempNext = null;
 var firstRender = true;
 var lastTimeDelta;
 var curMousePos = null;
@@ -147,8 +148,8 @@ function updateSim(deltaT) {
         simTexDNext = shaders.simTexD2;
         simTexVPrev = shaders.simTexV1;
         simTexVNext = shaders.simTexV2;
-        simTexPPrev = shaders.simTexP1;
-        simTexPNext = shaders.simTexP2;
+        simTexVTempPrev = shaders.simTexVTemp1;
+        simTexVTempNext = shaders.simTexVTemp2;
     }
 
     // Calculate mouse parameters
@@ -176,7 +177,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
 
     // Specify we render to framebuffer/ sim textures
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, shaders.simFB);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2]);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2, gl.COLOR_ATTACHMENT3]);
     gl.viewport(0, 0, curSimW, curSimH);
 
     // Clear framebuffer
@@ -257,8 +258,15 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, simTexVNext, 0);
         gl.bindTexture(gl.TEXTURE_2D, simTexDNext);
         gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, simTexDNext, 0);
-        gl.bindTexture(gl.TEXTURE_2D, simTexPNext);
-        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, simTexPNext, 0);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVTempNext);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, simTexVTempNext, 0);
+        if (i == 1) { // density temp texture only written on first iteration
+            gl.bindTexture(gl.TEXTURE_2D, shaders.simTexDTemp);
+            gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, shaders.simTexDTemp, 0);
+        } else {
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, null, 0);
+        }
         // input/sampler
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, simTexVPrev);
@@ -267,8 +275,14 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.bindTexture(gl.TEXTURE_2D, simTexDPrev);
         gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
         gl.activeTexture(gl.TEXTURE2);
-        gl.bindTexture(gl.TEXTURE_2D, simTexPPrev);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVTempPrev);
         gl.uniform1i(shaders.sim.uniformLocs.projectionSampler, 2);
+        gl.activeTexture(gl.TEXTURE3);
+        if (i == 1) // density temp texture can't be read on first iteration
+            gl.bindTexture(gl.TEXTURE_2D, null);
+        else
+            gl.bindTexture(gl.TEXTURE_2D, shaders.simTexDTemp);
+        gl.uniform1i(shaders.sim.uniformLocs.densityTempSampler, 3);
         // Clear framebuffer
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -282,9 +296,9 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         temp = simTexDNext;
         simTexDNext = simTexDPrev;
         simTexDPrev = temp;
-        temp = simTexPNext; // temp ones only matter some of the time, but this costs nothing
-        simTexPNext = simTexPPrev;
-        simTexPPrev = temp;
+        temp = simTexVTempNext; // temp ones only matter some of the time, but this costs nothing
+        simTexVTempNext = simTexVTempPrev;
+        simTexVTempPrev = temp;
 
         if (firstRender)
             break;
@@ -469,7 +483,8 @@ function initShaderPrograms() {
     let b1 = createShaderProgram("Fluid Simulation", shaders.sim,
         SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
         null, [
-            ["projectionSampler", "uTexP"],
+            ["projectionSampler", "uTexVTemp"],
+            ["densityTempSampler", "uTexDTemp"],
             ["deltaTime", "uDeltaTime"],
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
@@ -560,8 +575,9 @@ function createSimTextures(resX, resY) {
     shaders.simTexV2 = createSimTex(shaders.simTexV2, resX, resY);
     shaders.simTexD1 = createSimTex(shaders.simTexD1, resX, resY);
     shaders.simTexD2 = createSimTex(shaders.simTexD2, resX, resY);
-    shaders.simTexP1 = createSimTex(shaders.simTexP1, resX, resY);
-    shaders.simTexP2 = createSimTex(shaders.simTexP2, resX, resY);
+    shaders.simTexVTemp1 = createSimTex(shaders.simTexVTemp1, resX, resY);
+    shaders.simTexVTemp2 = createSimTex(shaders.simTexVTemp2, resX, resY);
+    shaders.simTexDTemp = createSimTex(shaders.simTexDTemp, resX, resY);
 
     // Make sure it initializes on the first render
     firstRender = true;
