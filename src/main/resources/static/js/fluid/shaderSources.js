@@ -185,17 +185,18 @@ const highp float INIT_DENSITY_HIGH = 10.0;
 
 const highp float SPIRAL_STRENGTH = 0.0;
 const highp float SOURCE_SPEED = 2.50;
-const highp float DENSITY_DIFFUSION = 1.0;
-const highp float VELOCITY_DIFFUSION = 2.0;
+const highp float DENSITY_DIFFUSION = 50.0;
+const highp float VELOCITY_DIFFUSION = 100.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
+const highp float MOUSE_AWAY_PROPORTION = 0.4;
 const highp float MOUSE_STRENGTH = 1.0;
 const highp float MOUSE_FALLOFF_EXP = 0.8;
 
 const highp float sqrt2 = 1.41421356237;
 const highp float sqrt2i = 1.0 / sqrt2;
 
-#define ROUNDED_MOUSE_CORNERS
+//#define ROUNDED_MOUSE_START
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_DECODING_HELPERS_PROJECTION}
@@ -237,27 +238,36 @@ void main() {
             outVelocityTemp = toV(newV);
 
             // Mouse calculation
-            // Get proximity to mouse (capsule-shaped influence)
-            highp vec2 mouseEnd = uMouseStart + uMouseDir * uMouseMag;
-            highp vec2 temp = vST - uMouseStart; // relative offset
-            highp float alongLine = dot(temp, uMouseDir); // distance/shadow along mouse dir
-            temp = uMouseStart + uMouseDir * alongLine; // closest point on line
-            highp float lineProx = alongLine > 0.0 && alongLine < uMouseMag ? distance(vST, temp) : MOUSE_MAX_DIST;
-            #ifdef ROUNDED_MOUSE_CORNERS
-            highp float circleProxStart = distance(vST, uMouseStart);
-            highp float circleProxEnd = distance(vST, mouseEnd);
+            // Get proximity to mouse (line)
+            highp vec2 lineDisp = vST - uMouseStart; // relative offset
+            highp float lineProx = dot(lineDisp, uMouseDir); // distance/shadow along mouse dir
+            lineDisp = uMouseStart + uMouseDir * lineProx; // closest point on line
+            lineDisp = vST - lineDisp; // normal to pixel
+            lineProx = lineProx > 0.0 && lineProx < uMouseMag ? length(lineDisp) : MOUSE_MAX_DIST;
+            
+            // Get min of that and circular ends proximity
+            highp vec2 circleDispEnd = vST - (uMouseStart + uMouseDir * uMouseMag);
+            highp float circleProxEnd = length(circleDispEnd);
+            highp vec2 mousePushDir = lineProx < circleProxEnd
+                ? lineDisp / lineProx
+                : circleDispEnd /  circleProxEnd;            
+            highp float prox = min(lineProx, circleProxEnd);
+            #ifdef ROUNDED_MOUSE_START
+            highp vec2 circleDispStart = vST - uMouseStart;
+            highp float circleProxStart = length(circleDispStart);
+            mousePushDir = circleProxStart < lineProx && circleProxStart < circleProxEnd
+                ? circleDispStart / circleProxStart
+                : mousePushDir;
+            prox =  min(prox, circleProxStart);
             #endif
-            highp float mouseInfluence =
-            #ifdef ROUNDED_MOUSE_CORNERS
-                min(lineProx, min(circleProxStart, circleProxEnd));
-            #else
-                lineProx;
-            #endif
-            mouseInfluence = max(0.0, MOUSE_MAX_DIST - mouseInfluence) / MOUSE_MAX_DIST;
-            mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * MOUSE_STRENGTH;
+            if (prox == 0.0) mousePushDir = vec2(0.0, 0.0); // divide by 0 protection!
 
-            // Add in the mouse movement
-            newV += uMouseDir * uMouseMag * mouseInfluence;
+            // Calculate influence based on proximity
+            highp float mouseInfluence = max(0.0, MOUSE_MAX_DIST - prox) / MOUSE_MAX_DIST;
+            mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * uDeltaTime * uMouseMag * MOUSE_STRENGTH;
+
+            // Add in the mouse movement, some pushing away, some going with mouse movement
+            newV += mouseInfluence * (mousePushDir * MOUSE_AWAY_PROPORTION + uMouseDir * (1.0 - MOUSE_AWAY_PROPORTION));
 
             // FOR DEBUG FLOW!
             // Middle part swirls in a spiral
