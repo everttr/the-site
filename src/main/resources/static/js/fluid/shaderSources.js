@@ -23,13 +23,13 @@ let CHANNEL_ENCODING_MACROS = `
 #define C2 255.0
 #define C2i (1.0 / C2)`
 let CHANNEL_DECODING_HELPERS = `
-highp vec2 fromV(highp vec4 v) {
-    return vec2(
+highp float fromV(highp vec4 v) {
+    return (
         (v.r) +
-        (v.g * C2i),
-        (v.b) +
-        (v.a * C2i)
-        ) * VBound - vec2(VOffset, VOffset);
+        (v.g * C2i) +
+        (v.b * C3i) +
+        (v.a * C4i)
+        ) * VBound - VOffset;
 }
 highp float fromD(highp vec4 d) {
     return (
@@ -40,33 +40,35 @@ highp float fromD(highp vec4 d) {
         ) * DMax;
 }`;
 let CHANNEL_DECODING_HELPERS_PROJECTION = `
-highp vec2 fromP(highp vec4 v) {
-    return vec2(
-        (v.r) +
-        (v.g * C2i),
-        (v.b) +
-        (v.a * C2i)
-        ) * PBound - vec2(POffset, POffset);
+highp float fromP(highp vec4 p) {
+    return (
+        (p.r) +
+        (p.g * C2i) +
+        (p.b * C3i) +
+        (p.a * C4i)
+        ) * PBound - POffset;
 }`;
 let CHANNEL_ENCODING_HELPERS = `
-highp vec4 toV(highp vec2 i) {
-    i += vec2(VOffset, VOffset);
+highp vec4 toV(highp float i) {
+    i += VOffset;
     i *= VBoundi;
-    i = vec2(clamp(i.x, 0.0, 1.0), clamp(i.y, 0.0, 1.0));
+    i = clamp(i, 0.0, 1.0);
     highp float t;
     highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
-    // dimension 1 channel 2 (least significant)
-    t = mod(i.x, C2i);
-    i.x -= t;
+    // channel 4 (least significant)
+    t = mod(i, C4i);
+    i -= t;
+    o.a = t * C4;
+    // channel 3
+    t = mod(i, C3i);
+    i -= t;
+    o.b = t * C3;
+    // channel 2
+    t = mod(i, C2i);
+    i -= t;
     o.g = t * C2;
-    // dimension 1 channel 1 (most significant)
-    o.r = i.x;
-    // dimension 2 channel 2 (least significant)
-    t = mod(i.y, C2i);
-    i.y -= t;
-    o.a = t * C2;
-    // dimension 2 channel 1 (most significant)
-    o.b = i.y;
+    // channel 1 (most significant)
+    o.r = i;
     return o;
 }
 highp vec4 toD(highp float i) {
@@ -91,24 +93,26 @@ highp vec4 toD(highp float i) {
     return o;
 }`;
 let CHANNEL_ENCODING_HELPERS_PROJECTION = `
-highp vec4 toP(highp vec2 i) {
-    i += vec2(POffset, POffset);
+highp vec4 toP(highp float i) {
+    i += POffset;
     i *= PBoundi;
-    i = vec2(clamp(i.x, 0.0, 1.0), clamp(i.y, 0.0, 1.0));
+    i = clamp(i, 0.0, 1.0);
     highp float t;
     highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
-    // dimension 1 channel 2 (least significant)
-    t = mod(i.x, C2i);
-    i.x -= t;
+    // channel 4 (least significant)
+    t = mod(i, C4i);
+    i -= t;
+    o.a = t * C4;
+    // channel 3
+    t = mod(i, C3i);
+    i -= t;
+    o.b = t * C3;
+    // channel 2
+    t = mod(i, C2i);
+    i -= t;
     o.g = t * C2;
-    // dimension 1 channel 1 (most significant)
-    o.r = i.x;
-    // dimension 2 channel 2 (least significant)
-    t = mod(i.y, C2i);
-    i.y -= t;
-    o.a = t * C2;
-    // dimension 2 channel 1 (most significant)
-    o.b = i.y;
+    // channel 1 (most significant)
+    o.r = i;
     return o;
 }`;
 
@@ -149,10 +153,12 @@ void main() {
 /*          ~~~ Fragment Shaders ~~~          */
 ////////////////////////////////////////////////
 const SHADERSTR_FLUID_SIM_FRAG = `#version 300 es
-layout(location = 0) out highp vec4 outVelocity;
-layout(location = 1) out highp vec4 outDensity;
-layout(location = 2) out highp vec4 outVelocityTemp;
-layout(location = 3) out highp vec4 outDensityTemp;
+layout(location = 0) out highp vec4 outVelocityX;
+layout(location = 1) out highp vec4 outVelocityY;
+layout(location = 2) out highp vec4 outVelocityTempX;
+layout(location = 3) out highp vec4 outVelocityTempY;
+layout(location = 4) out highp vec4 outDensity;
+layout(location = 5) out highp vec4 outDensityTemp;
 
 in highp vec2 vST;
 
@@ -167,8 +173,10 @@ const lowp uint SIMID_V_PROJECT_A = 32u; // apply
 const lowp uint SIMID_V_ADVECT = 64u;
 const lowp uint SIMID_INPUTS = 128u;
 
-uniform sampler2D uTexV;
-uniform sampler2D uTexVTemp;
+uniform sampler2D uTexVX;
+uniform sampler2D uTexVY;
+uniform sampler2D uTexVTempX;
+uniform sampler2D uTexVTempY;
 uniform sampler2D uTexD;
 uniform sampler2D uTexDTemp;
 uniform int uTexWidth;
@@ -205,7 +213,8 @@ ${CHANNEL_ENCODING_HELPERS_PROJECTION}
 
 void main() {
     if (uInitializeFields) {
-        outVelocity = toV(INIT_VELOCITY);
+        outVelocityX = toV(INIT_VELOCITY.x);
+        outVelocityY = toV(INIT_VELOCITY.y);
         bool isDense = vST.x >= 0.0 && vST.x <= 0.5 &&
                        vST.y >= 0.5 && vST.y <= 1.0;
         outDensity = toD(isDense ? INIT_DENSITY_HIGH : INIT_DENSITY_LOW);
@@ -213,28 +222,29 @@ void main() {
     }
 
     // Common calculations
-    highp vec2 newV = fromV(texture(uTexV, vST));
+    highp vec2 newV = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
     highp float w = 1.0 / float(uTexWidth);
     highp float h = 1.0 / float(uTexHeight);
 
     // Velocity calculation
     {
         // DEBUG! for storing temp values til the render stage
-        outVelocityTemp = texture(uTexVTemp, vST);
+        outVelocityTempX = texture(uTexVTempX, vST);
+        outVelocityTempY = texture(uTexVTempY, vST);
 
         // Get velocities around current for & projection
         // (n is -1, p is +1)
         // ((clipping isn't a problem b/c of wrapping))
-        highp vec2 c_0n = fromV(texture(uTexV, vST + vec2(0.0, -h)));
-        highp vec2 c_n0 = fromV(texture(uTexV, vST + vec2(-w, 0.0)));
-        highp vec2 c_p0 = fromV(texture(uTexV, vST + vec2(w, 0.0)));
-        highp vec2 c_0p = fromV(texture(uTexV, vST + vec2(0.0, h)));
+        highp vec2 c_0n = vec2(fromV(texture(uTexVX, vST + vec2(0.0, -h))), fromV(texture(uTexVY, vST + vec2(0.0, -h))));
+        highp vec2 c_n0 = vec2(fromV(texture(uTexVX, vST + vec2(-w, 0.0))), fromV(texture(uTexVY, vST + vec2(-w, 0.0))));
+        highp vec2 c_p0 = vec2(fromV(texture(uTexVX, vST + vec2(w, 0.0))), fromV(texture(uTexVY, vST + vec2(w, 0.0))));
+        highp vec2 c_0p = vec2(fromV(texture(uTexVX, vST + vec2(0.0, h))), fromV(texture(uTexVY, vST + vec2(0.0, h))));
         
         // Sample nearby "projected" values
-        highp float p_0n = fromP(texture(uTexVTemp, vST + vec2(0.0, -h))).y;
-        highp float p_n0 = fromP(texture(uTexVTemp, vST + vec2(-w, 0.0))).y;
-        highp float p_p0 = fromP(texture(uTexVTemp, vST + vec2(w, 0.0))).y;
-        highp float p_0p = fromP(texture(uTexVTemp, vST + vec2(0.0, h))).y;
+        highp float p_0n = fromP(texture(uTexVTempY, vST + vec2(0.0, -h)));
+        highp float p_n0 = fromP(texture(uTexVTempY, vST + vec2(-w, 0.0)));
+        highp float p_p0 = fromP(texture(uTexVTempY, vST + vec2(w, 0.0)));
+        highp float p_0p = fromP(texture(uTexVTempY, vST + vec2(0.0, h)));
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
             // Mouse calculation
@@ -278,35 +288,40 @@ void main() {
                 newV += vec2(toCenter.y, -toCenter.x) * SPIRAL_STRENGTH * uDeltaTime;
 
             // Save initial velocity for diffuse step
-            outVelocityTemp = toV(newV);
+            outVelocityTempX = toV(newV.x);
+            outVelocityTempY = toV(newV.y);
         }
 
         else if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
-            highp vec4 initialVel = texture(uTexVTemp, vST);
+            highp vec4 initialVelX = texture(uTexVTempX, vST);
+            highp vec4 initialVelY = texture(uTexVTempY, vST);
 
             highp float vel_diffusion = VELOCITY_DIFFUSION * uDeltaTime;
-            newV = (fromV(initialVel) + vel_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * vel_diffusion);
+            newV = (vec2(fromV(initialVelX), fromV(initialVelY)) + vel_diffusion * (c_0n + c_n0 + c_p0 + c_0p)) / (1.0 + 4.0 * vel_diffusion);
 
             // Pass on start-of-step velocity to next diffuse iteration
-            outVelocityTemp = initialVel;
+            outVelocityTempX = initialVelX;
+            outVelocityTempY = initialVelY;
         }
 
         else if ((uSimID & SIMID_V_PROJECT_G) == SIMID_V_PROJECT_G) {
             // Find velocity gradient around/at pixel
-            highp float grad = -0.5 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y);
+            highp vec4 grad = toP(-0.5 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y));
             // Output as initial values of projection variables (gradient, project)
             // (reused velocity packing code)
-            outVelocityTemp = toP(vec2(grad, grad)); // (in model code, project starts at 0.0. I think this is more efficient for fewer iterations)
+            outVelocityTempX = grad;
+            outVelocityTempY = grad; // (in the model code, project starts at 0.0. I think this is more efficient for fewer iterations)
         }
 
         else if ((uSimID & SIMID_V_PROJECT_R) == SIMID_V_PROJECT_R) {
-            highp vec2 pVars = fromP(texture(uTexVTemp, vST));
+            highp vec4 grad = texture(uTexVTempX, vST);
 
             // Iteratively relax each projected value to be 25% more than the average of its gradients
             // and neighboring projected values? I don't really understand this one if I'm honest
-            pVars.y = (pVars.x + p_0n + p_n0 + p_p0 + p_0p) * 0.25;
+            highp float newP = (fromP(grad) + p_0n + p_n0 + p_p0 + p_0p) * 0.25;
 
-            outVelocityTemp = toP(pVars);
+            outVelocityTempX = grad;
+            outVelocityTempY = toP(newP);
         }
 
         else if ((uSimID & SIMID_V_PROJECT_A) == SIMID_V_PROJECT_A) {
@@ -318,10 +333,12 @@ void main() {
         else if ((uSimID & SIMID_V_ADVECT) == SIMID_V_ADVECT) {
             // Get velocity around sample for advection
             // Interpolation is already done for us!
-            newV = fromV(texture(uTexV, vST + newV * uDeltaTime / vec2(w, h)));
+            highp vec2 samplePos = vST + newV * uDeltaTime / vec2(w, h);
+            newV = vec2(fromV(texture(uTexVX, samplePos)), fromV(texture(uTexVY, samplePos)));
         }
 
-        outVelocity = toV(newV);
+        outVelocityX = toV(newV.x);
+        outVelocityY = toV(newV.y);
     }
 
     // Density calculation
@@ -372,7 +389,8 @@ layout(location = 0) out mediump vec4 outColor;
 
 in mediump vec2 vST;
 
-uniform sampler2D uTexV;
+uniform sampler2D uTexVX;
+uniform sampler2D uTexVY;
 uniform sampler2D uTexD;
 uniform int uTexWidth;
 uniform int uTexHeight;
@@ -391,15 +409,15 @@ ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_DECODING_HELPERS_PROJECTION}
 
 void main() {
-    // mediump vec2 vel = fromV(texture(uTexV, vST));
-    // outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
+    mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
+    outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
 
-    mediump vec2 proj = fromP(texture(uTexD, vST));
-    mediump float c = proj.x * 1000.0;
-    outColor = vec4(c, c, c, 1.0);
+    // mediump float c = fromP(texture(uTexD, vST));
+    // c *= 1000.0;
+    // outColor = vec4(c, c, c, 1.0);
 
     // // Sample simulation at pixel
-    // mediump vec2 vel = fromV(texture(uTexV, vST));
+    // mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
     // mediump float density = fromD(texture(uTexD, vST));
 
     // // Create a normal of the fluid's surface

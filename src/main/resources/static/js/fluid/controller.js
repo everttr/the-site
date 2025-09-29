@@ -50,10 +50,14 @@ var shaders = {
         positions: null,
         st: null,
     },
-    simTexV1: null,
-    simTexV2: null,
-    simTexVTemp1: null, // extra buffer for intermediate values used in the velocity calculations
-    simTexVTemp2: null,
+    simTexVX1: null,
+    simTexVX2: null,
+    simTexVY1: null,
+    simTexVY2: null,
+    simTexVTempX1: null, // extra buffer for intermediate values used in the velocity calculations
+    simTexVTempX2: null,
+    simTexVTempY1: null,
+    simTexVTempY2: null,
     simTexD1: null,
     simTexD2: null,
     simTexDTemp: null,
@@ -68,10 +72,14 @@ var timeSim = -1; // ms it's been running
 var timePrev = new Date().valueOf();
 var simTexDPrev = null;
 var simTexDNext = null;
-var simTexVPrev = null;
-var simTexVNext = null;
-var simTexVTempPrev = null;
-var simTexVTempNext = null;
+var simTexVXPrev = null;
+var simTexVXNext = null;
+var simTexVYPrev = null;
+var simTexVYNext = null;
+var simTexVTempXPrev = null;
+var simTexVTempXNext = null;
+var simTexVTempYPrev = null;
+var simTexVTempYNext = null;
 var firstRender = true;
 var lastTimeDelta;
 var curMousePos = null;
@@ -146,10 +154,14 @@ function updateSim(deltaT) {
     if (firstRender) {
         simTexDPrev = shaders.simTexD1;
         simTexDNext = shaders.simTexD2;
-        simTexVPrev = shaders.simTexV1;
-        simTexVNext = shaders.simTexV2;
-        simTexVTempPrev = shaders.simTexVTemp1;
-        simTexVTempNext = shaders.simTexVTemp2;
+        simTexVXPrev = shaders.simTexVX1;
+        simTexVXNext = shaders.simTexVX2;
+        simTexVYPrev = shaders.simTexVY1;
+        simTexVYNext = shaders.simTexVY2;
+        simTexVTempXPrev = shaders.simTexVTempX1;
+        simTexVTempXNext = shaders.simTexVTempX2;
+        simTexVTempYPrev = shaders.simTexVTempY1;
+        simTexVTempYNext = shaders.simTexVTempY2;
     }
 
     // Calculate mouse parameters
@@ -170,14 +182,18 @@ function updateSim(deltaT) {
 
     // Then render the changes
     // (after final iteration, newest state is flipped to "previous" variable)
-    renderScene(simTexVPrev, simTexVTempPrev);
+    renderScene(simTexVXPrev, simTexVYPrev, simTexVTempXPrev);
 }
 function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders
 
     // Specify we render to framebuffer/ sim textures
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, shaders.simFB);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2, gl.COLOR_ATTACHMENT3]);
+    gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, // vel
+        gl.COLOR_ATTACHMENT2, gl.COLOR_ATTACHMENT3, // vel temp
+        gl.COLOR_ATTACHMENT4, gl.COLOR_ATTACHMENT5  // dens + dens temp
+    ]);
     gl.viewport(0, 0, curSimW, curSimH);
 
     // Clear framebuffer
@@ -254,35 +270,37 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.uniform1ui(shaders.sim.uniformLocs.simStepID, simStepID);
         
         // output/framebuffer
-        gl.bindTexture(gl.TEXTURE_2D, simTexVNext);
-        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, simTexVNext, 0);
-        gl.bindTexture(gl.TEXTURE_2D, simTexDNext);
-        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, simTexDNext, 0);
-        gl.bindTexture(gl.TEXTURE_2D, simTexVTempNext);
-        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, simTexVTempNext, 0);
-        if (i == 1) { // density temp texture only written on first iteration
-            gl.bindTexture(gl.TEXTURE_2D, shaders.simTexDTemp);
-            gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, shaders.simTexDTemp, 0);
-        } else {
-            gl.bindTexture(gl.TEXTURE_2D, null);
-            gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, null, 0);
-        }
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, simTexVXNext, 0);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, simTexVYNext, 0);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, simTexVTempXNext, 0);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, simTexVTempYNext, 0);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT4, gl.TEXTURE_2D, simTexDNext, 0);
+        if (i == 1) // density temp texture only written on first iteration
+            gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT5, gl.TEXTURE_2D, shaders.simTexDTemp, 0);
+        else
+            gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT5, gl.TEXTURE_2D, null, 0);
         // input/sampler
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, simTexVPrev);
-        gl.uniform1i(shaders.sim.uniformLocs.velocitySampler, 0);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVXPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.velocitySamplerX, 0);
         gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, simTexDPrev);
-        gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 1);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVXPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.velocitySamplerY, 1);
         gl.activeTexture(gl.TEXTURE2);
-        gl.bindTexture(gl.TEXTURE_2D, simTexVTempPrev);
-        gl.uniform1i(shaders.sim.uniformLocs.projectionSampler, 2);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVTempXPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.projectionSamplerX, 2);
         gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVTempYPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.projectionSamplerY, 3);
+        gl.activeTexture(gl.TEXTURE4);
+        gl.bindTexture(gl.TEXTURE_2D, simTexDPrev);
+        gl.uniform1i(shaders.sim.uniformLocs.densitySampler, 4);
+        gl.activeTexture(gl.TEXTURE5);
         if (i == 1) // density temp texture can't be read on first iteration
             gl.bindTexture(gl.TEXTURE_2D, null);
         else
             gl.bindTexture(gl.TEXTURE_2D, shaders.simTexDTemp);
-        gl.uniform1i(shaders.sim.uniformLocs.densityTempSampler, 3);
+        gl.uniform1i(shaders.sim.uniformLocs.densityTempSampler, 5);
         // Clear framebuffer
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -290,15 +308,21 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
         // Swap input/output buffers
-        var temp = simTexVNext;
-        simTexVNext = simTexVPrev;
-        simTexVPrev = temp;
+        var temp = simTexVXNext;
+        simTexVXNext = simTexVXPrev;
+        simTexVXPrev = temp;
+        var temp = simTexVYNext;
+        simTexVYNext = simTexVYPrev;
+        simTexVYPrev = temp;
         temp = simTexDNext;
         simTexDNext = simTexDPrev;
         simTexDPrev = temp;
-        temp = simTexVTempNext; // temp ones only matter some of the time, but this costs nothing
-        simTexVTempNext = simTexVTempPrev;
-        simTexVTempPrev = temp;
+        temp = simTexVTempXNext; // temp ones only matter some of the time, but this costs nothing
+        simTexVTempXNext = simTexVTempXPrev;
+        simTexVTempXPrev = temp;
+        temp = simTexVTempYNext;
+        simTexVTempYNext = simTexVTempYPrev;
+        simTexVTempYPrev = temp;
 
         if (firstRender)
             break;
@@ -317,7 +341,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     firstRender = false;
 
 }
-function renderScene(texVel, texDens) {
+function renderScene(texVelX, texVelY, texDens) {
     // Unbind framebuffer from simulation -- render to the canvas!
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -362,11 +386,14 @@ function renderScene(texVel, texDens) {
 
     // Provide the newly generated sim state texture as input
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texVel);
+    gl.bindTexture(gl.TEXTURE_2D, texVelX);
     gl.uniform1i(shaders.draw.uniformLocs.velocitySampler, 0);
     gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, texVelY);
+    gl.uniform1i(shaders.draw.uniformLocs.velocitySampler, 1);
+    gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, texDens);
-    gl.uniform1i(shaders.draw.uniformLocs.densitySampler, 1);
+    gl.uniform1i(shaders.draw.uniformLocs.densitySampler, 2);
     
     // Other simulation inputs
     gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
@@ -483,7 +510,8 @@ function initShaderPrograms() {
     let b1 = createShaderProgram("Fluid Simulation", shaders.sim,
         SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
         null, [
-            ["projectionSampler", "uTexVTemp"],
+            ["projectionSamplerX", "uTexVTempX"],
+            ["projectionSamplerY", "uTexVTempY"],
             ["densityTempSampler", "uTexDTemp"],
             ["deltaTime", "uDeltaTime"],
             ["mouseStart", "uMouseStart"],
@@ -531,10 +559,11 @@ function createShaderProgram(name, storage, vertSource, fragSource,
     let uniformLocs = {
         projectionMatrix: gl.getUniformLocation(program, "uProjectionMatrix"),
         modelViewMatrix:  gl.getUniformLocation(program, "uModelViewMatrix"),
-        velocitySampler:   gl.getUniformLocation(program, "uTexV"),
+        velocitySamplerX: gl.getUniformLocation(program, "uTexVX"),
+        velocitySamplerY: gl.getUniformLocation(program, "uTexVY"),
         densitySampler:   gl.getUniformLocation(program, "uTexD"),
-        texWidth: gl.getUniformLocation(program, "uTexWidth"),
-        texHeight: gl.getUniformLocation(program, "uTexHeight"),
+        texWidth:         gl.getUniformLocation(program, "uTexWidth"),
+        texHeight:        gl.getUniformLocation(program, "uTexHeight"),
     };
     if (extraUniforms !== null) {
         extraUniforms.forEach(u => {
@@ -571,12 +600,16 @@ function createVertexBuffer(name, data) {
 }
 function createSimTextures(resX, resY) {
     // Create new render textures to act as alternating simulation buffers
-    shaders.simTexV1 = createSimTex(shaders.simTexV1, resX, resY);
-    shaders.simTexV2 = createSimTex(shaders.simTexV2, resX, resY);
+    shaders.simTexVX1 = createSimTex(shaders.simTexVX1, resX, resY);
+    shaders.simTexVX2 = createSimTex(shaders.simTexVX2, resX, resY);
+    shaders.simTexVY1 = createSimTex(shaders.simTexVY1, resX, resY);
+    shaders.simTexVY2 = createSimTex(shaders.simTexVY2, resX, resY);
     shaders.simTexD1 = createSimTex(shaders.simTexD1, resX, resY);
     shaders.simTexD2 = createSimTex(shaders.simTexD2, resX, resY);
-    shaders.simTexVTemp1 = createSimTex(shaders.simTexVTemp1, resX, resY);
-    shaders.simTexVTemp2 = createSimTex(shaders.simTexVTemp2, resX, resY);
+    shaders.simTexVTempX1 = createSimTex(shaders.simTexVTempX1, resX, resY);
+    shaders.simTexVTempX2 = createSimTex(shaders.simTexVTempX2, resX, resY);
+    shaders.simTexVTempY1 = createSimTex(shaders.simTexVTempY1, resX, resY);
+    shaders.simTexVTempY2 = createSimTex(shaders.simTexVTempY2, resX, resY);
     shaders.simTexDTemp = createSimTex(shaders.simTexDTemp, resX, resY);
 
     // Make sure it initializes on the first render
