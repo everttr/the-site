@@ -170,7 +170,7 @@ function updateSim(deltaT) {
 
     // Then render the changes
     // (after final iteration, newest state is flipped to "previous" variable)
-    renderScene(simTexVPrev, simTexDPrev);
+    renderScene(simTexVPrev, simTexVTempPrev);
 }
 function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders

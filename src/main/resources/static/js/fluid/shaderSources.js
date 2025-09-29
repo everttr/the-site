@@ -8,12 +8,12 @@
 // A bit hacky, but it'll have to work.
 let FORCE_ONE_CHANNEL_ENCODING = false;
 let CHANNEL_ENCODING_MACROS = `
-#define VOffset 0.05
 #define VBound 0.1
-#define VBoundi 1.0 / VBound
-#define POffset 5.0
-#define PBound 10.0
-#define PBoundi 1.0 / PBound
+#define VBoundi (1.0 / VBound)
+#define VOffset (0.5 * VBound)
+#define PBound 20.0
+#define PBoundi (1.0 / PBound)
+#define POffset (0.5 * PBound)
 #define DMax 100.0
 #define DMaxi 1.0 / DMax
 #define C4 16581375.0
@@ -185,7 +185,7 @@ const highp float INIT_DENSITY_HIGH = 10.0;
 
 const highp float SPIRAL_STRENGTH = 0.0;
 const highp float SOURCE_SPEED = 2.50;
-const highp float DENSITY_DIFFUSION = 50.0;
+const highp float DENSITY_DIFFUSION = 100.0;
 const highp float VELOCITY_DIFFUSION = 100.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
@@ -218,7 +218,10 @@ void main() {
     highp float h = 1.0 / float(uTexHeight);
 
     // Velocity calculation
-    {        
+    {
+        // DEBUG! for storing temp values til the render stage
+        outVelocityTemp = texture(uTexVTemp, vST);
+
         // Get velocities around current for & projection
         // (n is -1, p is +1)
         // ((clipping isn't a problem b/c of wrapping))
@@ -234,9 +237,6 @@ void main() {
         highp float p_0p = fromP(texture(uTexVTemp, vST + vec2(0.0, h))).y;
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
-            // Save initial velocity for diffuse step
-            outVelocityTemp = toV(newV);
-
             // Mouse calculation
             // Get proximity to mouse (line)
             highp vec2 lineDisp = vST - uMouseStart; // relative offset
@@ -276,6 +276,9 @@ void main() {
             toCenter /= centerDist;
             if (centerDist <= 0.25)
                 newV += vec2(toCenter.y, -toCenter.x) * SPIRAL_STRENGTH * uDeltaTime;
+
+            // Save initial velocity for diffuse step
+            outVelocityTemp = toV(newV);
         }
 
         else if ((uSimID & SIMID_V_DIFFUSE) == SIMID_V_DIFFUSE) {
@@ -307,7 +310,6 @@ void main() {
         }
 
         else if ((uSimID & SIMID_V_PROJECT_A) == SIMID_V_PROJECT_A) {
-            highp vec2 pVars = fromP(texture(uTexVTemp, vST));
             // Finally, move each pixel's velocity away from the gradient of its projected values
             newV.x -= 0.5 * (p_p0 - p_n0);
             newV.y -= 0.5 * (p_0p - p_0n);
@@ -386,14 +388,19 @@ const mediump float LIGHT_DIF = LIGHT_MAX - LIGHT_MIN;
 
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
+${CHANNEL_DECODING_HELPERS_PROJECTION}
 
 void main() {
     // mediump vec2 vel = fromV(texture(uTexV, vST));
     // outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
 
-    // Sample simulation at pixel
-    mediump vec2 vel = fromV(texture(uTexV, vST));
-    mediump float density = fromD(texture(uTexD, vST));
+    mediump vec2 proj = fromP(texture(uTexD, vST));
+    mediump float c = proj.x * 1000.0;
+    outColor = vec4(c, c, c, 1.0);
+
+    // // Sample simulation at pixel
+    // mediump vec2 vel = fromV(texture(uTexV, vST));
+    // mediump float density = fromD(texture(uTexD, vST));
 
     // // Create a normal of the fluid's surface
     // mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
@@ -403,7 +410,7 @@ void main() {
     // l = l * LIGHT_DIF + LIGHT_MIN;
 
     // outColor = COL * l;
-    outColor = COL * sqrt(density);
+    // outColor = COL * sqrt(density);
     // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
     // mediump vec2 mov = from(texture(uTex, vST));
