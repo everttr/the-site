@@ -182,7 +182,7 @@ function updateSim(deltaT) {
 
     // Then render the changes
     // (after final iteration, newest state is flipped to "previous" variable)
-    renderScene(simTexVXPrev, simTexVYPrev, simTexVTempXPrev);
+    renderScene(simTexVXPrev, simTexVYPrev, simTexDPrev);
 }
 function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders
@@ -284,7 +284,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.bindTexture(gl.TEXTURE_2D, simTexVXPrev);
         gl.uniform1i(shaders.sim.uniformLocs.velocitySamplerX, 0);
         gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, simTexVXPrev);
+        gl.bindTexture(gl.TEXTURE_2D, simTexVYPrev);
         gl.uniform1i(shaders.sim.uniformLocs.velocitySamplerY, 1);
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, simTexVTempXPrev);

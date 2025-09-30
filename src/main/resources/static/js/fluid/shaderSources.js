@@ -8,7 +8,7 @@
 // A bit hacky, but it'll have to work.
 let FORCE_ONE_CHANNEL_ENCODING = false;
 let CHANNEL_ENCODING_MACROS = `
-#define VBound 0.1
+#define VBound 0.025
 #define VBoundi (1.0 / VBound)
 #define VOffset (0.5 * VBound)
 #define PBound 20.0
@@ -193,8 +193,8 @@ const highp float INIT_DENSITY_HIGH = 10.0;
 
 const highp float SPIRAL_STRENGTH = 0.0;
 const highp float SOURCE_SPEED = 2.50;
-const highp float DENSITY_DIFFUSION = 100.0;
-const highp float VELOCITY_DIFFUSION = 100.0;
+const highp float DENSITY_DIFFUSION = 80.0;
+const highp float VELOCITY_DIFFUSION = 60.0;
 
 const highp float MOUSE_MAX_DIST = 0.03;
 const highp float MOUSE_AWAY_PROPORTION = 0.4;
@@ -306,7 +306,7 @@ void main() {
 
         else if ((uSimID & SIMID_V_PROJECT_G) == SIMID_V_PROJECT_G) {
             // Find velocity gradient around/at pixel
-            highp vec4 grad = toP(-0.5 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y));
+            highp vec4 grad = toP(50000.0 * (c_p0.x - c_n0.x + c_0p.y - c_0n.y));
             // Output as initial values of projection variables (gradient, project)
             // (reused velocity packing code)
             outVelocityTempX = grad;
@@ -326,14 +326,14 @@ void main() {
 
         else if ((uSimID & SIMID_V_PROJECT_A) == SIMID_V_PROJECT_A) {
             // Finally, move each pixel's velocity away from the gradient of its projected values
-            newV.x -= 0.5 * (p_p0 - p_n0);
-            newV.y -= 0.5 * (p_0p - p_0n);
+            newV.x += 0.000005 * (p_p0 - p_n0);
+            newV.y += 0.000005 * (p_0p - p_0n);
         }
 
         else if ((uSimID & SIMID_V_ADVECT) == SIMID_V_ADVECT) {
             // Get velocity around sample for advection
             // Interpolation is already done for us!
-            highp vec2 samplePos = vST + newV * uDeltaTime / vec2(w, h);
+            highp vec2 samplePos = vST - newV * uDeltaTime / vec2(w, h);
             newV = vec2(fromV(texture(uTexVX, samplePos)), fromV(texture(uTexVY, samplePos)));
         }
 
@@ -409,16 +409,16 @@ ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_DECODING_HELPERS_PROJECTION}
 
 void main() {
-    mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
-    outColor = vec4((vel.x + VOffset) * VBoundi, (vel.y + VOffset) * VBoundi, 0.5, 1.0);
+    // mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
+    // outColor = vec4(0.5 + vel.x * VBoundi * 7.0, 0.5 + vel.y * VBoundi * 7.0, 0.5, 1.0);
 
     // mediump float c = fromP(texture(uTexD, vST));
-    // c *= 1000.0;
+    // c /= 20.0;
     // outColor = vec4(c, c, c, 1.0);
 
-    // // Sample simulation at pixel
-    // mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
-    // mediump float density = fromD(texture(uTexD, vST));
+    // Sample simulation at pixel
+    mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
+    mediump float density = fromD(texture(uTexD, vST));
 
     // // Create a normal of the fluid's surface
     // mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
@@ -428,7 +428,7 @@ void main() {
     // l = l * LIGHT_DIF + LIGHT_MIN;
 
     // outColor = COL * l;
-    // outColor = COL * sqrt(density);
+    outColor = COL * sqrt(density);
     // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
 
     // mediump vec2 mov = from(texture(uTex, vST));
