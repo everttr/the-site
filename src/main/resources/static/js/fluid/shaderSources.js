@@ -388,8 +388,11 @@ in mediump vec2 vST;
 uniform sampler2D uTexVX;
 uniform sampler2D uTexVY;
 uniform sampler2D uTexD;
-uniform int uTexWidth;
-uniform int uTexHeight;
+uniform mediump int uTexWidth;
+uniform mediump int uTexHeight;
+
+uniform mediump float uDeltaTime;
+uniform mediump float uAspect;
 
 const mediump vec4 COL = vec4(0.275, 0.573, 0.988, 1.0);
 
@@ -400,21 +403,31 @@ const mediump float LIGHT_MIN = 0.1;
 const mediump float LIGHT_MAX = 1.0;
 const mediump float LIGHT_DIF = LIGHT_MAX - LIGHT_MIN;
 
+#define FUTURE_INTERPOLATION
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_DECODING_HELPERS_PROJECTION}
 
 void main() {
-    // mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
+    // Sample simulation at pixel
+    // but first do a forward-looking advect step in case we're future-interpolating
+    mediump vec2 vel;
+    mediump float density;
+    vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
+    #ifdef FUTURE_INTERPOLATION
+    mediump vec2 vel2TextureCoords = vec2(float(uTexWidth) / uAspect, float(uTexHeight)) * uDeltaTime;
+    vel *= vel2TextureCoords;
+    vel = vec2(fromV(texture(uTexVX, vST + vel)), fromV(texture(uTexVY, vST + vel)));
+    density = fromD(texture(uTexD, vST + vel * vel2TextureCoords));
+    #else
+    density = fromD(texture(uTexD, vST));
+    #endif
+
     // outColor = vec4(0.5 + vel.x * VBoundi * 7.0, 0.5 + vel.y * VBoundi * 7.0, 0.5, 1.0);
 
     // mediump float c = fromP(texture(uTexD, vST));
     // c /= 20.0;
     // outColor = vec4(c, c, c, 1.0);
-
-    // Sample simulation at pixel
-    mediump vec2 vel = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
-    mediump float density = fromD(texture(uTexD, vST));
 
     // // Create a normal of the fluid's surface
     // mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));

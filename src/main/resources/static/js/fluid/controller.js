@@ -10,6 +10,7 @@ const minCanvH = 128;
 const canvasScale = 1.0 / 3.0;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
+const RENDER_FRAME_INTERVAL = 2; // renders every N frames
 const SIMID_D_DIFFUSE = 1;
 const SIMID_D_ADVECT = 2;
 const SIMID_V_DIFFUSE = 4;
@@ -70,6 +71,7 @@ var curSimW = null;
 var curSimH = null;
 var timeSim = -1; // ms it's been running
 var timePrev = new Date().valueOf();
+var timePrevIFrame = timePrev;
 var simTexDPrev = null;
 var simTexDNext = null;
 var simTexVXPrev = null;
@@ -85,6 +87,7 @@ var lastTimeDelta;
 var curMousePos = null;
 var prevMousePos = null;
 var focused = true;
+var frameParity = 0;
 
 ////////////////////////////////////////////////////
 /*          ~~~ Function Definitions ~~~          */
@@ -135,21 +138,31 @@ function refreshCanvas(newWidth, newHeight) {
     curCanvH = newHeight;
 }
 function tryUpdateRepeating(_ = null) {
+    // Calculate if this is going to be an expensive I-Frame
+    let isIFrame = false;
+    if (--frameParity <= 0 || firstRender) {
+        frameParity = RENDER_FRAME_INTERVAL;
+        isIFrame = true;
+    }
+
     timeCur = new Date().valueOf();
     timeDelta = timeCur - timePrev;
     timeSim += timeDelta;
     timePrev = timeCur;
     lastTimeDelta = timeDelta;
+    timeDeltaSinceLastIFrame = timeCur - timePrevIFrame;
+    if (isIFrame) timePrevIFrame = timeCur;
     // so we don't update twice in the same frame for whatever reason
     if (timeDelta == 0 && !firstRender)
         return;
 
-    updateSim(timeDelta / 1000.0);
+    // Only render every N frames (because jeez it's expensive!)
+    updateSim(timeDeltaSinceLastIFrame / 1000.0 * Math.max(1, RENDER_FRAME_INTERVAL), isIFrame);
 
     if (focused)
         requestAnimationFrame(tryUpdateRepeating);
 }
-function updateSim(deltaT) {
+function updateSim(deltaTSinceLastIFrame, isIFrame) {
     // On start, arbitrarily assign which sim textures are input/output
     if (firstRender) {
         simTexDPrev = shaders.simTexD1;
@@ -164,25 +177,28 @@ function updateSim(deltaT) {
         simTexVTempYNext = shaders.simTexVTempY2;
     }
 
-    // Calculate mouse parameters
-    let mouseStart = prevMousePos;
-    let mouseEnd = curMousePos;
-    let mouseDir = null;
-    let mouseMag = 0;
-    if (mouseStart != mouseEnd && mouseStart !== null && mouseEnd !== null) {
-        let dx = mouseEnd[0] - mouseStart[0];
-        let dy = mouseEnd[1] - mouseStart[1];
-        mouseMag = Math.sqrt(dx * dx + dy * dy);
-        mouseDir = [dx / mouseMag, dy / mouseMag];
+    // Only do VERY expensive sim recalculation step every once in a while
+    if (isIFrame) {
+        // Calculate mouse parameters
+        let mouseStart = prevMousePos;
+        let mouseEnd = curMousePos;
+        let mouseDir = null;
+        let mouseMag = 0;
+        if (mouseStart != mouseEnd && mouseStart !== null && mouseEnd !== null) {
+            let dx = mouseEnd[0] - mouseStart[0];
+            let dy = mouseEnd[1] - mouseStart[1];
+            mouseMag = Math.sqrt(dx * dx + dy * dy);
+            mouseDir = [dx / mouseMag, dy / mouseMag];
+        }
+        prevMousePos = curMousePos;
+    
+        // Update the fluid simulation
+        simStep(deltaTSinceLastIFrame, mouseStart, mouseDir, mouseMag);
     }
-    prevMousePos = curMousePos;
-
-    // Update the fluid simulation
-    simStep(deltaT, mouseStart, mouseDir, mouseMag);
 
     // Then render the changes
     // (after final iteration, newest state is flipped to "previous" variable)
-    renderScene(simTexVXPrev, simTexVYPrev, simTexDPrev);
+    renderScene(isIFrame ? 0.0 : deltaTSinceLastIFrame, simTexVXPrev, simTexVYPrev, simTexDPrev);
 }
 function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     // We update the sim using the simulation fragment shaders
@@ -342,7 +358,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     firstRender = false;
 
 }
-function renderScene(texVelX, texVelY, texDens) {
+function renderScene(deltaT, texVelX, texVelY, texDens) {
     // Unbind framebuffer from simulation -- render to the canvas!
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -399,6 +415,8 @@ function renderScene(texVelX, texVelY, texDens) {
     // Other simulation inputs
     gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.draw.uniformLocs.texHeight, curSimH);
+    gl.uniform1f(shaders.draw.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
+    gl.uniform1f(shaders.draw.uniformLocs.deltaTime, deltaT);
 
     // Draw 'em!
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -436,6 +454,7 @@ function init() {
                 return;
 
             timePrev = new Date().valueOf() - lastTimeDelta; // start counting from now!
+            timePrevIFrame = timePrev;
             focused = true;
             if (DEBUG_VERBOSITY >= 2) console.log("Focused window");
             // Also reset stored mouse position so it doesn't drag from where it was long ago
@@ -514,7 +533,6 @@ function initShaderPrograms() {
             ["projectionSamplerX", "uTexVTempX"],
             ["projectionSamplerY", "uTexVTempY"],
             ["densityTempSampler", "uTexDTemp"],
-            ["deltaTime", "uDeltaTime"],
             ["mouseStart", "uMouseStart"],
             ["mouseDir", "uMouseDir"],
             ["mouseMag", "uMouseMag"],
@@ -566,6 +584,7 @@ function createShaderProgram(name, storage, vertSource, fragSource,
         texWidth:         gl.getUniformLocation(program, "uTexWidth"),
         texHeight:        gl.getUniformLocation(program, "uTexHeight"),
         aspect:           gl.getUniformLocation(program, "uAspect"),
+        deltaTime:        gl.getUniformLocation(program, "uDeltaTime"),
     };
     if (extraUniforms !== null) {
         extraUniforms.forEach(u => {
