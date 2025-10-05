@@ -11,6 +11,7 @@ const canvasScale = 1.0 / 3.0;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
 const RENDER_FRAME_INTERVAL = 2; // renders every N frames
+const MIN_IFRAME_DIST_REALTIME_MS = 1000.0 / 25.0; // except it's more common on very low refresh-rate screens
 const SIM_SPEED_MULTIPLIER = 1.65; // just make it a bit more chaotic, to show off :)
 const SIMID_D_DIFFUSE = 1;
 const SIMID_D_ADVECT = 2;
@@ -139,12 +140,6 @@ function refreshCanvas(newWidth, newHeight) {
     curCanvH = newHeight;
 }
 function tryUpdateRepeating(_ = null) {
-    // Calculate if this is going to be an expensive I-Frame
-    let isIFrame = false;
-    if (--frameParity <= 0 || firstRender) {
-        frameParity = RENDER_FRAME_INTERVAL;
-        isIFrame = true;
-    }
 
     timeCur = new Date().valueOf();
     timeDelta = timeCur - timePrev;
@@ -152,7 +147,16 @@ function tryUpdateRepeating(_ = null) {
     timePrev = timeCur;
     lastTimeDelta = timeDelta;
     timeDeltaSinceLastIFrame = timeCur - timePrevIFrame;
-    if (isIFrame) timePrevIFrame = timeCur;
+
+    // Calculate if this is going to be an expensive I-Frame
+    let isIFrame = --frameParity <= 0
+        || firstRender
+        || timeDeltaSinceLastIFrame > MIN_IFRAME_DIST_REALTIME_MS;
+    if (isIFrame) {
+        frameParity = RENDER_FRAME_INTERVAL;
+        timePrevIFrame = timeCur;
+    }
+    
     // so we don't update twice in the same frame for whatever reason
     if (timeDelta == 0 && !firstRender)
         return;
