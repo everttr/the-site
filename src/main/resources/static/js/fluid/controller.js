@@ -7,7 +7,7 @@
 // Constants/Parameters
 const minCanvW = 128;
 const minCanvH = 128;
-const canvasScale = 0.5;
+const canvasScale = 1.0 / 3.0;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
 const SIMID_D_DIFFUSE = 1;
@@ -19,13 +19,13 @@ const SIMID_V_PROJECT_A = 32; // apply
 const SIMID_V_ADVECT = 64;
 const SIMID_INPUTS = 128;
 const SIM_INPUTS_COUNT = 1; // # of iterations after these finish
-const SIM_V_DIFFUSE_COUNT = 5 + SIM_INPUTS_COUNT;
+const SIM_V_DIFFUSE_COUNT = 2 + SIM_INPUTS_COUNT;
 const SIM_V_PROJECT1_G_COUNT = 1 + SIM_V_DIFFUSE_COUNT;
-const SIM_V_PROJECT1_R_COUNT = 5 + SIM_V_PROJECT1_G_COUNT;
+const SIM_V_PROJECT1_R_COUNT = 3 + SIM_V_PROJECT1_G_COUNT;
 const SIM_V_PROJECT1_A_COUNT = 1 + SIM_V_PROJECT1_R_COUNT;
 const SIM_V_ADVECT_COUNT = 1 + SIM_V_PROJECT1_A_COUNT;
 const SIM_V_PROJECT2_G_COUNT = 1 + SIM_V_ADVECT_COUNT;
-const SIM_V_PROJECT2_R_COUNT = 5 + SIM_V_PROJECT2_G_COUNT;
+const SIM_V_PROJECT2_R_COUNT = 3 + SIM_V_PROJECT2_G_COUNT;
 const SIM_V_PROJECT2_A_COUNT = 1 + SIM_V_PROJECT2_R_COUNT;
 const DEBUG_VERBOSITY = 2;
 // Plain Globals
@@ -247,6 +247,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     // Provide other simulation inputs
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
+    gl.uniform1f(shaders.sim.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT);
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
@@ -564,6 +565,7 @@ function createShaderProgram(name, storage, vertSource, fragSource,
         densitySampler:   gl.getUniformLocation(program, "uTexD"),
         texWidth:         gl.getUniformLocation(program, "uTexWidth"),
         texHeight:        gl.getUniformLocation(program, "uTexHeight"),
+        aspect:           gl.getUniformLocation(program, "uAspect"),
     };
     if (extraUniforms !== null) {
         extraUniforms.forEach(u => {

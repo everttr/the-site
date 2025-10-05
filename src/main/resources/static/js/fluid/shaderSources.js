@@ -179,8 +179,9 @@ uniform sampler2D uTexVTempX;
 uniform sampler2D uTexVTempY;
 uniform sampler2D uTexD;
 uniform sampler2D uTexDTemp;
-uniform int uTexWidth;
-uniform int uTexHeight;
+uniform mediump int uTexWidth;
+uniform mediump int uTexHeight;
+uniform highp float uAspect;
 
 uniform highp float uDeltaTime;
 uniform highp vec2 uMouseStart;
@@ -191,14 +192,13 @@ const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
 const highp float INIT_DENSITY_LOW = 0.0;
 const highp float INIT_DENSITY_HIGH = 10.0;
 
-const highp float SPIRAL_STRENGTH = 0.0;
-const highp float SOURCE_SPEED = 2.50;
-const highp float DENSITY_DIFFUSION = 80.0;
-const highp float VELOCITY_DIFFUSION = 60.0;
+const highp float SOURCE_SPEED = 7.50;
+const highp float DENSITY_DIFFUSION = 2.5;
+const highp float VELOCITY_DIFFUSION = 2.25;
 
 const highp float MOUSE_MAX_DIST = 0.03;
-const highp float MOUSE_AWAY_PROPORTION = 0.4;
-const highp float MOUSE_STRENGTH = 1.0;
+const highp float MOUSE_AWAY_AMOUNT = 0.8;
+const highp float MOUSE_STRENGTH = 0.6;
 const highp float MOUSE_FALLOFF_EXP = 0.8;
 
 const highp float sqrt2 = 1.41421356237;
@@ -215,15 +215,16 @@ void main() {
     if (uInitializeFields) {
         outVelocityX = toV(INIT_VELOCITY.x);
         outVelocityY = toV(INIT_VELOCITY.y);
-        bool isDense = vST.x >= 0.0 && vST.x <= 0.5 &&
-                       vST.y >= 0.5 && vST.y <= 1.0;
-        outDensity = toD(isDense ? INIT_DENSITY_HIGH : INIT_DENSITY_LOW);
+        outDensity = toD(
+            vST.x >= 0.0 && vST.x <= 0.5 / uAspect &&
+            vST.y >= 0.5 && vST.y <= 1.0
+                ? INIT_DENSITY_HIGH : INIT_DENSITY_LOW);
         return;
     }
 
     // Common calculations
     highp vec2 newV = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
-    highp float w = 1.0 / float(uTexWidth);
+    highp float w = uAspect / float(uTexWidth);
     highp float h = 1.0 / float(uTexHeight);
 
     // Velocity calculation
@@ -253,10 +254,12 @@ void main() {
             highp float lineProx = dot(lineDisp, uMouseDir); // distance/shadow along mouse dir
             lineDisp = uMouseStart + uMouseDir * lineProx; // closest point on line
             lineDisp = vST - lineDisp; // normal to pixel
+            lineDisp.x *= uAspect;
             lineProx = lineProx > 0.0 && lineProx < uMouseMag ? length(lineDisp) : MOUSE_MAX_DIST;
             
             // Get min of that and circular ends proximity
             highp vec2 circleDispEnd = vST - (uMouseStart + uMouseDir * uMouseMag);
+            circleDispEnd.x *= uAspect;
             highp float circleProxEnd = length(circleDispEnd);
             highp vec2 mousePushDir = lineProx < circleProxEnd
                 ? lineDisp / lineProx
@@ -264,6 +267,7 @@ void main() {
             highp float prox = min(lineProx, circleProxEnd);
             #ifdef ROUNDED_MOUSE_START
             highp vec2 circleDispStart = vST - uMouseStart;
+            circleDispStart.x *= uAspect;
             highp float circleProxStart = length(circleDispStart);
             mousePushDir = circleProxStart < lineProx && circleProxStart < circleProxEnd
                 ? circleDispStart / circleProxStart
@@ -277,15 +281,7 @@ void main() {
             mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * uDeltaTime * uMouseMag * MOUSE_STRENGTH;
 
             // Add in the mouse movement, some pushing away, some going with mouse movement
-            newV += mouseInfluence * (mousePushDir * MOUSE_AWAY_PROPORTION + uMouseDir * (1.0 - MOUSE_AWAY_PROPORTION));
-
-            // FOR DEBUG FLOW!
-            // Middle part swirls in a spiral
-            highp vec2 toCenter = vec2(0.5, 0.5) - vST;
-            highp float centerDist = length(toCenter);
-            toCenter /= centerDist;
-            if (centerDist <= 0.25)
-                newV += vec2(toCenter.y, -toCenter.x) * SPIRAL_STRENGTH * uDeltaTime;
+            newV += mouseInfluence * (mousePushDir * MOUSE_AWAY_AMOUNT + uMouseDir);
 
             // Save initial velocity for diffuse step
             outVelocityTempX = toV(newV.x);
