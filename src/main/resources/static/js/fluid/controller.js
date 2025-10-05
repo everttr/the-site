@@ -11,6 +11,7 @@ const canvasScale = 1.0 / 3.0;
 const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
 const RENDER_FRAME_INTERVAL = 2; // renders every N frames
+const SIM_SPEED_MULTIPLIER = 1.65; // just make it a bit more chaotic, to show off :)
 const SIMID_D_DIFFUSE = 1;
 const SIMID_D_ADVECT = 2;
 const SIMID_V_DIFFUSE = 4;
@@ -264,7 +265,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
     gl.uniform1f(shaders.sim.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
-    gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT);
+    gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
     // Do a certain number of iterative steps to make it less chaotic
