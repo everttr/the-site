@@ -12,7 +12,7 @@ const canvasResizeTolerance = 0.25;
 const canvasInactiveColor = "#77b2bd"
 const RENDER_FRAME_INTERVAL = 2; // renders every N frames
 const MIN_IFRAME_DIST_REALTIME_MS = 1000.0 / 25.0; // except it's more common on very low refresh-rate screens
-const SIM_SPEED_MULTIPLIER = 1.65; // just make it a bit more chaotic, to show off :)
+const SIM_SPEED_MULTIPLIER = 1.6; // just make it a bit more chaotic, to show off :)
 const SIMID_D_DIFFUSE = 1;
 const SIMID_D_ADVECT = 2;
 const SIMID_V_DIFFUSE = 4;
@@ -72,7 +72,7 @@ var curCanvH = null;
 var curSimW = null;
 var curSimH = null;
 var timeSim = -1; // ms it's been running
-var timePrev = new Date().valueOf();
+var timePrev = document.timeline.currentTime;
 var timePrevIFrame = timePrev;
 var simTexDPrev = null;
 var simTexDNext = null;
@@ -140,8 +140,7 @@ function refreshCanvas(newWidth, newHeight) {
     curCanvH = newHeight;
 }
 function tryUpdateRepeating(_ = null) {
-
-    timeCur = new Date().valueOf();
+    timeCur = document.timeline.currentTime;
     timeDelta = timeCur - timePrev;
     timeSim += timeDelta;
     timePrev = timeCur;
@@ -195,7 +194,8 @@ function updateSim(deltaTSinceLastIFrame, isIFrame) {
             mouseMag = Math.sqrt(dx * dx + dy * dy);
             mouseDir = [dx / mouseMag, dy / mouseMag];
         }
-        prevMousePos = curMousePos;
+        // prevMousePos = curMousePos === null ? null : [curMousePos[0], curMousePos[1]];
+        prevMousePos = curMousePos; // ^^^ why does this make the sim freak out???????
     
         // Update the fluid simulation
         simStep(deltaTSinceLastIFrame, mouseStart, mouseDir, mouseMag);
@@ -263,12 +263,14 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
         gl.uniform2f(shaders.sim.uniformLocs.mouseStart, mouseStart[0], mouseStart[1]);
         gl.uniform2f(shaders.sim.uniformLocs.mouseDir, mouseDir[0], mouseDir[1]);
         gl.uniform1f(shaders.sim.uniformLocs.mouseMag, mouseMag);
+        if (DEBUG_VERBOSITY >= 3)
+            console.log(`Sim mouse start: (${mouseStart[0]}, ${mouseStart[1]}), dir: (${mouseDir[0]}, ${mouseDir[1]}), mouseMag: ${mouseMag}`);
     }
 
     // Provide other simulation inputs
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
-    gl.uniform1f(shaders.sim.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
+    gl.uniform1f(shaders.sim.uniformLocs.aspect, 1); // gl.canvas.width / gl.canvas.height
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
@@ -276,7 +278,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     let iterations = SIM_V_PROJECT2_A_COUNT;
     for (let i = 1; i <= iterations; i++) {
         let simStepID =
-            (i <= SIM_INPUTS_COUNT ? SIMID_INPUTS : 0) | // handle inputs on first iteration
+            (i == SIM_INPUTS_COUNT ? SIMID_INPUTS : 0) | // handle inputs on first iteration
 
             (i > SIM_INPUTS_COUNT && i < iterations ? SIMID_D_DIFFUSE : 0) | // diffuse density on all but last iteration
             (i == iterations ? SIMID_D_ADVECT : 0) | // only advect density on final iteration
@@ -420,8 +422,8 @@ function renderScene(deltaT, texVelX, texVelY, texDens) {
     // Other simulation inputs
     gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.draw.uniformLocs.texHeight, curSimH);
-    gl.uniform1f(shaders.draw.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
-    gl.uniform1f(shaders.draw.uniformLocs.deltaTime, deltaT);
+    gl.uniform1f(shaders.draw.uniformLocs.aspect, 1); // gl.canvas.width / gl.canvas.height
+    gl.uniform1f(shaders.draw.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
 
     // Draw 'em!
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -458,12 +460,12 @@ function init() {
             if (focused)
                 return;
 
-            timePrev = new Date().valueOf() - lastTimeDelta; // start counting from now!
+            timePrev = document.timeline.currentTime - lastTimeDelta; // start counting from now!
             timePrevIFrame = timePrev;
             focused = true;
             if (DEBUG_VERBOSITY >= 2) console.log("Focused window");
             // Also reset stored mouse position so it doesn't drag from where it was long ago
-            prevMousePos = null;
+            // prevMousePos = null;
             // Also have to start the rendering loop back up again
             tryUpdateRepeating();
         })
