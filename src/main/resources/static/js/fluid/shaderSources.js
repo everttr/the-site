@@ -185,7 +185,7 @@ uniform highp float uAspect;
 
 uniform highp float uDeltaTime;
 
-const lowp uint MOUSE_BUFFER_SIZE = 2;
+#define MOUSE_BUFFER_SIZE 2
 uniform highp vec2 uMouseStart[MOUSE_BUFFER_SIZE];
 uniform highp vec2 uMouseDir[MOUSE_BUFFER_SIZE];
 uniform highp float uMouseMag[MOUSE_BUFFER_SIZE];
@@ -252,36 +252,42 @@ void main() {
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
             // Mouse calculation
-            highp float proxCur, prox = MOUSE_MAX_DIST;
-            highp vec2 disp, mousePushDir = vec2(0.0, 0.0);
-            for (lowp uint i = 0; i < MOUSE_BUFFER_SIZE; ++i) {
+            highp float proxCur, prox = MOUSE_MAX_DIST, mag = 0.0;
+            highp vec2 disp, mousePushDir = vec2(0.0, 0.0), mouseDir = vec2(0.0, 0.0);
+            for (lowp int i = 0; i < MOUSE_BUFFER_SIZE; ++i) {
                 // Get proximity to mouse (line)
-                disp = vST - uMouseStart; // relative offset
+                disp = vST - uMouseStart[i]; // relative offset
                 disp.x /= uAspect;
-                proxCur = dot(disp, uMouseDir); // shadow on line
-                proxCur = proxCur >= 0.0 && proxCur < uMouseMag
-                    ? abs(dot(disp, vec2(uMouseDir.y * uAspect, -uMouseDir.x))) // dist along normal of movement vector
+                proxCur = dot(disp, uMouseDir[i]); // shadow on line
+                proxCur = proxCur >= 0.0 && proxCur < uMouseMag[i]
+                    ? abs(dot(disp, vec2(uMouseDir[i].y * uAspect, -uMouseDir[i].x))) // dist along normal of movement vector
                     : MOUSE_MAX_DIST;
                 if (proxCur < prox) {
                     prox = proxCur;
                     mousePushDir = disp / proxCur;
+                    mag = uMouseMag[i];
+                    mouseDir = uMouseDir[i];
                 }
 
                 // Get min of that and circular ends proximity
                 #ifdef ROUNDED_MOUSE_START
-                disp = vST - uMouseStart;
+                disp = vST - uMouseStart[i];
                 proxCur = length(vec2(disp.x * uAspect, disp.y));
                 if (proxCur < prox) {
                     prox = proxCur;
                     mousePushDir = disp / proxCur;
+                    mag = uMouseMag[i];
+                    mouseDir = uMouseDir[i];
                 }
                 #endif
                 #ifdef ROUNDED_MOUSE_END
-                disp = vST - (uMouseStart + uMouseDir * uMouseMag);
+                disp = vST - (uMouseStart[i] + uMouseDir[i] * uMouseMag[i]);
                 proxCur = length(vec2(disp.x * uAspect, disp.y));
                 if (proxCur < prox) {
                     prox = proxCur;
                     mousePushDir = disp / proxCur;
+                    mag = uMouseMag[i];
+                    mouseDir = uMouseDir[i];
                 }
                 #endif
             }
@@ -289,10 +295,10 @@ void main() {
 
             // Calculate influence based on proximity
             highp float mouseInfluence = max(0.0, 1.0 - prox / MOUSE_MAX_DIST);
-            mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * uDeltaTime * uMouseMag * MOUSE_STRENGTH;
+            mouseInfluence = pow(mouseInfluence, MOUSE_FALLOFF_EXP) * uDeltaTime * mag * MOUSE_STRENGTH;
 
             // Add in the mouse movement, some pushing away, some going with mouse movement
-            newV += mouseInfluence * (mousePushDir * MOUSE_AWAY_AMOUNT + uMouseDir);
+            newV += mouseInfluence * (mousePushDir * MOUSE_AWAY_AMOUNT + mouseDir);
 
             // Save initial velocity for diffuse step
             outVelocityTempX = toV(newV.x);

@@ -30,7 +30,9 @@ const SIM_V_ADVECT_COUNT = 1 + SIM_V_PROJECT1_A_COUNT;
 const SIM_V_PROJECT2_G_COUNT = 1 + SIM_V_ADVECT_COUNT;
 const SIM_V_PROJECT2_R_COUNT = 3 + SIM_V_PROJECT2_G_COUNT;
 const SIM_V_PROJECT2_A_COUNT = 1 + SIM_V_PROJECT2_R_COUNT;
-const DEBUG_VERBOSITY = 2;
+const MOUSE_ARGS_BUFFER_SIZE = RENDER_FRAME_INTERVAL;
+const MOUSE_POS_BUFFER_SIZE = MOUSE_ARGS_BUFFER_SIZE + 1;
+const DEBUG_VERBOSITY = 3;
 // Plain Globals
 var canvas;
 var gl;
@@ -86,9 +88,10 @@ var simTexVTempYPrev = null;
 var simTexVTempYNext = null;
 var firstRender = true;
 var lastTimeDelta;
-var mousePosBuffer = Array(RENDER_FRAME_INTERVAL).fill(null);
+var mousePosBuffer = Array(MOUSE_POS_BUFFER_SIZE).fill(null);
 var mousePosIndexTop = 0;
 var mousePosArrSize = 0;
+var curMousePos = null;
 var focused = true;
 var frameParity = 0;
 
@@ -99,35 +102,37 @@ var frameParity = 0;
 function clearMousePos() {
     mousePosArrSize = 0;
 }
+function hasMousePos() { return mousePosArrSize > 0; }
 function pushMousePos(pos) {
     mousePosBuffer[mousePosIndexTop] = pos;
-    mousePosIndexTop = (mousePosIndexTop + 1) % length(mousePosBuffer);
-    mousePosArrSize = Math.min(mousePosArrSize + 1, RENDER_FRAME_INTERVAL);
+    let ogTop = mousePosIndexTop;
+    let ogSize = mousePosArrSize;
+    mousePosIndexTop = (mousePosIndexTop + 1) % MOUSE_POS_BUFFER_SIZE;
+    mousePosArrSize = Math.min(mousePosArrSize + 1, MOUSE_POS_BUFFER_SIZE);
 }
 function getCurMousePos() {
     if (mousePosArrSize <= 0) return null;
     return [temp[0], temp[1]];
 }
 function getPrevMousePos(distance) {
-    if (distance < 0 || distnce > mousePosArrSize) return null;
+    if (distance < 0 || distance > mousePosArrSize) return null;
     let remapped = mousePosIndexTop - 1 - i;
-    if (remapped < 0) remapped = RENDER_FRAME_INTERVAL - remapped;
+    if (remapped < 0) remapped = MOUSE_POS_BUFFER_SIZE - remapped;
     let temp = mousePosBuffer[remapped];
     return [temp[0], temp[1]];
 }
 function getPrevMousePosArr() {
     // if not full, fills with identical copies
-    return Array(RENDER_FRAME_INTERVAL).fill(null).map((_, i) => {
+    return Array(MOUSE_POS_BUFFER_SIZE).fill(null).map((_, i) => {
         if (mousePosArrSize <= 0)
             return [0, 0];
-        let remapped = Math.min(i, mousePosArrSize);
-        remapped = mousePosIndexTop - 1 - i;
-        if (remapped < 0) remapped = RENDER_FRAME_INTERVAL - remapped;
+        let remapped = Math.min(i, mousePosArrSize - 1);
+        remapped = mousePosIndexTop - 1 - remapped;
+        if (remapped < 0) remapped += MOUSE_POS_BUFFER_SIZE;
         let temp = mousePosBuffer[remapped];
         return [temp[0], temp[1]];
     });
 }
-// Helper functions for initialization/refreshing
 function nearestPowerOf2(n) {
     // taken from: https://stackoverflow.com/a/42799104
     return 1 << 32 - Math.clz32(n);
@@ -215,27 +220,19 @@ function updateSim(deltaTSinceLastIFrame, isIFrame) {
 
     // Only do VERY expensive sim recalculation step every once in a while
     if (isIFrame) {
-        // Calculate mouse parameters
-        let mouseStart = getPrevMousePos(1);
-        let mouseEnd = getCurMousePos();
-        let mouseDir = null;
-        let mouseMag = 0;
-        if (mouseStart != mouseEnd && mouseStart !== null && mouseEnd !== null) {
-            let dx = mouseEnd[0] - mouseStart[0];
-            let dy = mouseEnd[1] - mouseStart[1];
-            mouseMag = Math.sqrt(dx * dx + dy * dy);
-            mouseDir = [dx / mouseMag, dy / mouseMag];
-        }
-    
-        // Update the fluid simulation
-        simStep(deltaTSinceLastIFrame, mouseStart, mouseDir, mouseMag);
+        if (curMousePos !== null) pushMousePos([curMousePos[0], curMousePos[1]]);
+        simStep(deltaTSinceLastIFrame);
+        clearMousePos();
     }
+    
+    if (curMousePos === null) clearMousePos();
+    else pushMousePos([curMousePos[0], curMousePos[1]]);
 
     // Then render the changes
     // (after final iteration, newest state is flipped to "previous" variable)
     renderScene(isIFrame ? 0.0 : deltaTSinceLastIFrame, simTexVXPrev, simTexVYPrev, simTexDPrev);
 }
-function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
+function simStep(deltaT) {
     // We update the sim using the simulation fragment shaders
 
     // Specify we render to framebuffer/ sim textures
@@ -285,19 +282,42 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     gl.uniformMatrix4fv(shaders.sim.uniformLocs.modelViewMatrix, false, modelViewMatrix);
 
     // Provide the user mouse input
-    if (mouseStart === null || mouseDir === null) {
+    if (hasMousePos()) {
+        let poses = getPrevMousePosArr();
+
+        let starts = Array(MOUSE_ARGS_BUFFER_SIZE * 2).fill(0);
+        let dirs = Array(MOUSE_ARGS_BUFFER_SIZE * 2).fill(0);
+        let mags = Array(MOUSE_ARGS_BUFFER_SIZE).fill(0);
+
+        // move back
+        // first encountered is oldest pos' ending
+        let dx, dy;
+        for (let i = poses.length - 2; i >= 0; --i) {
+            let ix = i * 2;
+            let iy = ix + 1;
+            starts[ix] = poses[i + 1][0];
+            starts[iy] = poses[i + 1][1];
+            dx = poses[i][0] - starts[ix];
+            dy = poses[i][1] - starts[iy];
+            mags[i] = Math.sqrt(dx * dx + dy * dy);
+            if (mags[i] != 0) {
+                dirs[ix] = dx / mags[i];
+                dirs[iy] = dy / mags[i];
+            }
+        }
+        
+        gl.uniform2fv(shaders.sim.uniformLocs.mouseStart, starts);
+        gl.uniform2fv(shaders.sim.uniformLocs.mouseDir, dirs);
+        gl.uniform1fv(shaders.sim.uniformLocs.mouseMag, mags);
+        if (DEBUG_VERBOSITY >= 3)
+            console.log(`Sim mouse starts: ${starts}, dirs: ${dirs}, mags: ${mags}`);
+    } else {
         // create dummy empty arrays if no mouse movement
-        let vec2 = Array(RENDER_FRAME_INTERVAL).fill([0, 0]);
-        let single = Array(RENDER_FRAME_INTERVAL).fill([0]);
+        let vec2 = Array(MOUSE_ARGS_BUFFER_SIZE).fill([0, 0]);
+        let single = Array(MOUSE_ARGS_BUFFER_SIZE).fill([0]);
         gl.uniform2fv(shaders.sim.uniformLocs.mouseStart, vec2);
         gl.uniform2fv(shaders.sim.uniformLocs.mouseEnd, vec2);
         gl.uniform1fv(shaders.sim.uniformLocs.mouseMag, single);
-    } else {
-        gl.uniform2fv(shaders.sim.uniformLocs.mouseStart, mouseStart[0], mouseStart[1]);
-        gl.uniform2fv(shaders.sim.uniformLocs.mouseDir, mouseDir[0], mouseDir[1]);
-        gl.uniform1fv(shaders.sim.uniformLocs.mouseMag, mouseMag);
-        if (DEBUG_VERBOSITY >= 3)
-            console.log(`Sim mouse start: (${mouseStart[0]}, ${mouseStart[1]}), dir: (${mouseDir[0]}, ${mouseDir[1]}), mouseMag: ${mouseMag}`);
     }
 
     // Provide other simulation inputs
@@ -519,7 +539,7 @@ function init() {
             //     return;
             // Store mouse pos relative to canvas
             // Simulation will make waves with this
-            pushMousePos([(x - canvRect.x) / canvRect.width, 1.0 - (y - canvRect.y) / canvRect.height]);
+            curMousePos = [(x - canvRect.x) / canvRect.width, 1.0 - (y - canvRect.y) / canvRect.height];
         });
         // Possible resizing event
         window.addEventListener("resize", (event) => {
