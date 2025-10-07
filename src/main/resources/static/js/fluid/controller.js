@@ -270,7 +270,7 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
     // Provide other simulation inputs
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
-    gl.uniform1f(shaders.sim.uniformLocs.aspect, 1); // gl.canvas.width / gl.canvas.height
+    gl.uniform1f(shaders.sim.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
@@ -422,7 +422,7 @@ function renderScene(deltaT, texVelX, texVelY, texDens) {
     // Other simulation inputs
     gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.draw.uniformLocs.texHeight, curSimH);
-    gl.uniform1f(shaders.draw.uniformLocs.aspect, 1); // gl.canvas.width / gl.canvas.height
+    gl.uniform1f(shaders.draw.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
     gl.uniform1f(shaders.draw.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
 
     // Draw 'em!

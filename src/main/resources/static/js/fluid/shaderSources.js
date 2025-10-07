@@ -252,11 +252,12 @@ void main() {
             // Mouse calculation
             // Get proximity to mouse (line)
             highp vec2 lineDisp = vST - uMouseStart; // relative offset
+            lineDisp.x /= uAspect;
             highp float lineProx = dot(lineDisp, uMouseDir); // shadow on line
             lineProx = lineProx >= 0.0 && lineProx < uMouseMag
-                ? abs(dot(lineDisp, vec2(uMouseDir.y, -uMouseDir.x))) // dist along normal of movement vector
+                ? abs(dot(lineDisp, vec2(uMouseDir.y * uAspect, -uMouseDir.x))) // dist along normal of movement vector
                 : MOUSE_MAX_DIST;
-            
+
             // Get min of that and circular ends proximity
             highp vec2 circleDispEnd = vST - (uMouseStart + uMouseDir * uMouseMag);
             highp float circleProxEnd = length(vec2(circleDispEnd.x * uAspect, circleDispEnd.y));
