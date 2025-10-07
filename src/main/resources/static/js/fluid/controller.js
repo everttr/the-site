@@ -86,8 +86,9 @@ var simTexVTempYPrev = null;
 var simTexVTempYNext = null;
 var firstRender = true;
 var lastTimeDelta;
-var curMousePos = null;
-var prevMousePos = null;
+var mousePosBuffer = Array(RENDER_FRAME_INTERVAL).fill(null);
+var mousePosIndexTop = 0;
+var mousePosArrSize = 0;
 var focused = true;
 var frameParity = 0;
 
@@ -95,6 +96,37 @@ var frameParity = 0;
 /*          ~~~ Function Definitions ~~~          */
 ////////////////////////////////////////////////////
 
+function clearMousePos() {
+    mousePosArrSize = 0;
+}
+function pushMousePos(pos) {
+    mousePosBuffer[mousePosIndexTop] = pos;
+    mousePosIndexTop = (mousePosIndexTop + 1) % length(mousePosBuffer);
+    mousePosArrSize = Math.min(mousePosArrSize + 1, RENDER_FRAME_INTERVAL);
+}
+function getCurMousePos() {
+    if (mousePosArrSize <= 0) return null;
+    return [temp[0], temp[1]];
+}
+function getPrevMousePos(distance) {
+    if (distance < 0 || distnce > mousePosArrSize) return null;
+    let remapped = mousePosIndexTop - 1 - i;
+    if (remapped < 0) remapped = RENDER_FRAME_INTERVAL - remapped;
+    let temp = mousePosBuffer[remapped];
+    return [temp[0], temp[1]];
+}
+function getPrevMousePosArr() {
+    // if not full, fills with identical copies
+    return Array(RENDER_FRAME_INTERVAL).fill(null).map((_, i) => {
+        if (mousePosArrSize <= 0)
+            return [0, 0];
+        let remapped = Math.min(i, mousePosArrSize);
+        remapped = mousePosIndexTop - 1 - i;
+        if (remapped < 0) remapped = RENDER_FRAME_INTERVAL - remapped;
+        let temp = mousePosBuffer[remapped];
+        return [temp[0], temp[1]];
+    });
+}
 // Helper functions for initialization/refreshing
 function nearestPowerOf2(n) {
     // taken from: https://stackoverflow.com/a/42799104
@@ -184,8 +216,8 @@ function updateSim(deltaTSinceLastIFrame, isIFrame) {
     // Only do VERY expensive sim recalculation step every once in a while
     if (isIFrame) {
         // Calculate mouse parameters
-        let mouseStart = prevMousePos;
-        let mouseEnd = curMousePos;
+        let mouseStart = getPrevMousePos(1);
+        let mouseEnd = getCurMousePos();
         let mouseDir = null;
         let mouseMag = 0;
         if (mouseStart != mouseEnd && mouseStart !== null && mouseEnd !== null) {
@@ -194,8 +226,6 @@ function updateSim(deltaTSinceLastIFrame, isIFrame) {
             mouseMag = Math.sqrt(dx * dx + dy * dy);
             mouseDir = [dx / mouseMag, dy / mouseMag];
         }
-        // prevMousePos = curMousePos === null ? null : [curMousePos[0], curMousePos[1]];
-        prevMousePos = curMousePos; // ^^^ why does this make the sim freak out???????
     
         // Update the fluid simulation
         simStep(deltaTSinceLastIFrame, mouseStart, mouseDir, mouseMag);
@@ -256,13 +286,16 @@ function simStep(deltaT, mouseStart, mouseDir, mouseMag) {
 
     // Provide the user mouse input
     if (mouseStart === null || mouseDir === null) {
-        gl.uniform2f(shaders.sim.uniformLocs.mouseStart, 0, 0);
-        gl.uniform2f(shaders.sim.uniformLocs.mouseEnd, 0, 0);
-        gl.uniform1f(shaders.sim.uniformLocs.mouseMag, 0);
+        // create dummy empty arrays if no mouse movement
+        let vec2 = Array(RENDER_FRAME_INTERVAL).fill([0, 0]);
+        let single = Array(RENDER_FRAME_INTERVAL).fill([0]);
+        gl.uniform2fv(shaders.sim.uniformLocs.mouseStart, vec2);
+        gl.uniform2fv(shaders.sim.uniformLocs.mouseEnd, vec2);
+        gl.uniform1fv(shaders.sim.uniformLocs.mouseMag, single);
     } else {
-        gl.uniform2f(shaders.sim.uniformLocs.mouseStart, mouseStart[0], mouseStart[1]);
-        gl.uniform2f(shaders.sim.uniformLocs.mouseDir, mouseDir[0], mouseDir[1]);
-        gl.uniform1f(shaders.sim.uniformLocs.mouseMag, mouseMag);
+        gl.uniform2fv(shaders.sim.uniformLocs.mouseStart, mouseStart[0], mouseStart[1]);
+        gl.uniform2fv(shaders.sim.uniformLocs.mouseDir, mouseDir[0], mouseDir[1]);
+        gl.uniform1fv(shaders.sim.uniformLocs.mouseMag, mouseMag);
         if (DEBUG_VERBOSITY >= 3)
             console.log(`Sim mouse start: (${mouseStart[0]}, ${mouseStart[1]}), dir: (${mouseDir[0]}, ${mouseDir[1]}), mouseMag: ${mouseMag}`);
     }
@@ -465,7 +498,7 @@ function init() {
             focused = true;
             if (DEBUG_VERBOSITY >= 2) console.log("Focused window");
             // Also reset stored mouse position so it doesn't drag from where it was long ago
-            // prevMousePos = null;
+            clearMousePos();
             // Also have to start the rendering loop back up again
             tryUpdateRepeating();
         })
@@ -486,7 +519,7 @@ function init() {
             //     return;
             // Store mouse pos relative to canvas
             // Simulation will make waves with this
-            curMousePos = [(x - canvRect.x) / canvRect.width, 1.0 - (y - canvRect.y) / canvRect.height];
+            pushMousePos([(x - canvRect.x) / canvRect.width, 1.0 - (y - canvRect.y) / canvRect.height]);
         });
         // Possible resizing event
         window.addEventListener("resize", (event) => {

@@ -184,9 +184,11 @@ uniform mediump int uTexHeight;
 uniform highp float uAspect;
 
 uniform highp float uDeltaTime;
-uniform highp vec2 uMouseStart;
-uniform highp vec2 uMouseDir;
-uniform highp float uMouseMag;
+
+const lowp uint MOUSE_BUFFER_SIZE = 2;
+uniform highp vec2 uMouseStart[MOUSE_BUFFER_SIZE];
+uniform highp vec2 uMouseDir[MOUSE_BUFFER_SIZE];
+uniform highp float uMouseMag[MOUSE_BUFFER_SIZE];
 
 const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
 const highp float INIT_DENSITY_LOW = 0.0;
@@ -205,6 +207,7 @@ const highp float sqrt2 = 1.41421356237;
 const highp float sqrt2i = 1.0 / sqrt2;
 
 //#define ROUNDED_MOUSE_START
+#define ROUNDED_MOUSE_END
 ${CHANNEL_ENCODING_MACROS}
 ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_DECODING_HELPERS_PROJECTION}
@@ -248,32 +251,41 @@ void main() {
         highp float p_0p = fromP(texture(uTexVTempY, vST + vec2(0.0, h)));
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
-
             // Mouse calculation
-            // Get proximity to mouse (line)
-            highp vec2 lineDisp = vST - uMouseStart; // relative offset
-            lineDisp.x /= uAspect;
-            highp float lineProx = dot(lineDisp, uMouseDir); // shadow on line
-            lineProx = lineProx >= 0.0 && lineProx < uMouseMag
-                ? abs(dot(lineDisp, vec2(uMouseDir.y * uAspect, -uMouseDir.x))) // dist along normal of movement vector
-                : MOUSE_MAX_DIST;
+            highp float proxCur, prox = MOUSE_MAX_DIST;
+            highp vec2 disp, mousePushDir = vec2(0.0, 0.0);
+            for (lowp uint i = 0; i < MOUSE_BUFFER_SIZE; ++i) {
+                // Get proximity to mouse (line)
+                disp = vST - uMouseStart; // relative offset
+                disp.x /= uAspect;
+                proxCur = dot(disp, uMouseDir); // shadow on line
+                proxCur = proxCur >= 0.0 && proxCur < uMouseMag
+                    ? abs(dot(disp, vec2(uMouseDir.y * uAspect, -uMouseDir.x))) // dist along normal of movement vector
+                    : MOUSE_MAX_DIST;
+                if (proxCur < prox) {
+                    prox = proxCur;
+                    mousePushDir = disp / proxCur;
+                }
 
-            // Get min of that and circular ends proximity
-            highp vec2 circleDispEnd = vST - (uMouseStart + uMouseDir * uMouseMag);
-            highp float circleProxEnd = length(vec2(circleDispEnd.x * uAspect, circleDispEnd.y));
-            highp vec2 mousePushDir = lineProx < circleProxEnd
-                ? lineDisp / lineProx
-                : circleDispEnd / circleProxEnd;
-            highp float prox = min(lineProx, circleProxEnd);
-            #ifdef ROUNDED_MOUSE_START
-            highp vec2 circleDispStart = vST - uMouseStart;
-            highp float circleProxStart = length(vec2(circleDispEnd.x * uAspect, circleDispEnd.y));
-            mousePushDir = circleProxStart < prox
-                ? circleDispStart / circleProxStart
-                : mousePushDir;
-            prox =  min(prox, circleProxStart);
-            #endif
-            if (prox == 0.0) mousePushDir = vec2(0.0, 0.0); // divide by 0 protection!
+                // Get min of that and circular ends proximity
+                #ifdef ROUNDED_MOUSE_START
+                disp = vST - uMouseStart;
+                proxCur = length(vec2(disp.x * uAspect, disp.y));
+                if (proxCur < prox) {
+                    prox = proxCur;
+                    mousePushDir = disp / proxCur;
+                }
+                #endif
+                #ifdef ROUNDED_MOUSE_END
+                disp = vST - (uMouseStart + uMouseDir * uMouseMag);
+                proxCur = length(vec2(disp.x * uAspect, disp.y));
+                if (proxCur < prox) {
+                    prox = proxCur;
+                    mousePushDir = disp / proxCur;
+                }
+                #endif
+            }
+            if (prox == 0.0) mousePushDir = vec2(1.0, 0.0); // divide by 0 protection!
 
             // Calculate influence based on proximity
             highp float mouseInfluence = max(0.0, 1.0 - prox / MOUSE_MAX_DIST);
