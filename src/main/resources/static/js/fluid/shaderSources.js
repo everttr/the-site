@@ -144,7 +144,6 @@ const highp float MOUSE_STRENGTH = 0.7;
 const highp float MOUSE_FALLOFF_EXP = 8.5; // must be high or the low-precision side effect of a hollow mouse influence is visible
 
 const highp float sqrt2 = 1.41421356237;
-const highp float sqrt2i = 1.0 / sqrt2;
 
 //#define ROUNDED_MOUSE_START
 #define ROUNDED_MOUSE_END
@@ -157,7 +156,7 @@ void main() {
         outVelocityX = toV(INIT_VELOCITY.x);
         outVelocityY = toV(INIT_VELOCITY.y);
         outDensity = toD(
-            vST.x >= 0.0 && vST.x <= 0.5 / uAspect &&
+            vST.x >= 0.0 && vST.x <= 0.4 &&
             vST.y >= 0.5 && vST.y <= 1.0
                 ? INIT_DENSITY_HIGH : INIT_DENSITY_LOW);
         return;
