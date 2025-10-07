@@ -5,9 +5,9 @@
 //////////////////////////////////////////////////
 
 // Constants/Parameters
-const minCanvW = 128;
-const minCanvH = 128;
 const canvasScale = 1.0 / 3.0;
+const canvasSizeMin = 128;
+const canvasSizeMax = 1024;
 const canvasInactiveColor = "#77b2bd"
 const RENDER_FRAME_INTERVAL = 2; // renders every N frames
 const MIN_IFRAME_DIST_REALTIME_MS = 1000.0 / 25.0; // except it's more common on very low refresh-rate screens
@@ -142,13 +142,15 @@ function nearestPowerOf2(n) {
 function pollResizeCanvas() {
     let canvasRect = canvas.getBoundingClientRect();
     let desiredW = Math.max(
-        nearestPowerOf2(Math.ceil(Math.max(
-            canvasRect.width) * canvasScale)
-        ), minCanvW);
+        Math.min(canvasSizeMax,
+            Math.max(canvasSizeMin,
+                nearestPowerOf2(
+                    Math.ceil(canvasRect.width * canvasScale)))));
     let desiredH = Math.max(
-        nearestPowerOf2(Math.ceil(Math.max(
-            canvasRect.height) * canvasScale)
-        ), minCanvH);
+        Math.min(canvasSizeMax,
+            Math.max(canvasSizeMin,
+                nearestPowerOf2(
+                    Math.ceil(canvasRect.height * canvasScale)))));
 
     console.log(`resized! old width: ${curCanvW}, new: ${desiredW}, old height: ${curCanvH}, new: ${desiredH}`);
     if (// Always refresh if not been sized yet
