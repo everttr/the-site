@@ -7,95 +7,35 @@
 // Helpers to encode higher precision signed floats into the frame buffer.
 // A bit hacky, but it'll have to work.
 let FORCE_ONE_CHANNEL_ENCODING = false;
-let CHANNEL_ENCODING_MACROS = `
-#define VBound 0.025
-#define VBoundi (1.0 / VBound)
-#define VOffset (0.5 * VBound)
-#define PBound 20.0
-#define PBoundi (1.0 / PBound)
-#define POffset (0.5 * PBound)
-#define DMax 100.0
-#define DMaxi 1.0 / DMax
-#define C4 16581375.0
-#define C4i (1.0 / C4)
-#define C3 65025.0
-#define C3i (1.0 / C3)
-#define C2 255.0
-#define C2i (1.0 / C2)`
+let CHANNEL_ENCODING_CONSTS = `
+const highp float VBound = 0.025;
+const highp float VBoundi = (1.0 / VBound);
+const highp float PBound = 20.0;
+const highp float PBoundi = (1.0 / PBound);
+const highp float DBound = 100.0;
+const highp float DBoundi = 1.0 / DBound;
+const highp float C4 = 16581375.0;
+const highp float C4i = (1.0 / C4);
+const highp float C3 = 65025.0;
+const highp float C3i = (1.0 / C3);
+const highp float C2 = 255.0;
+const highp float C2i = (1.0 / C2);`
 let CHANNEL_DECODING_HELPERS = `
-highp float fromV(highp vec4 v) {
+#define fromV(i) ((from(i) - 0.5) * VBound)
+#define fromP(i) ((from(i) - 0.5) * PBound)
+#define fromD(i) (from(i) * DBound)
+highp float from(highp vec4 v) {
     return (
         (v.r) +
         (v.g * C2i) +
         (v.b * C3i) +
-        (v.a * C4i)
-        ) * VBound - VOffset;
-}
-highp float fromD(highp vec4 d) {
-    return (
-        (d.r) +
-        (d.g * C2i) +
-        (d.b * C3i) +
-        (d.a * C4i)
-        ) * DMax;
-}`;
-let CHANNEL_DECODING_HELPERS_PROJECTION = `
-highp float fromP(highp vec4 p) {
-    return (
-        (p.r) +
-        (p.g * C2i) +
-        (p.b * C3i) +
-        (p.a * C4i)
-        ) * PBound - POffset;
+        (v.a * C4i));
 }`;
 let CHANNEL_ENCODING_HELPERS = `
-highp vec4 toV(highp float i) {
-    i += VOffset;
-    i *= VBoundi;
-    i = clamp(i, 0.0, 1.0);
-    highp float t;
-    highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
-    // channel 4 (least significant)
-    t = mod(i, C4i);
-    i -= t;
-    o.a = t * C4;
-    // channel 3
-    t = mod(i, C3i);
-    i -= t;
-    o.b = t * C3;
-    // channel 2
-    t = mod(i, C2i);
-    i -= t;
-    o.g = t * C2;
-    // channel 1 (most significant)
-    o.r = i;
-    return o;
-}
-highp vec4 toD(highp float i) {
-    i *= DMaxi;
-    i = clamp(i, 0.0, 1.0);
-    highp float t;
-    highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
-    // channel 4 (least significant)
-    t = mod(i, C4i);
-    i -= t;
-    o.a = t * C4;
-    // channel 3
-    t = mod(i, C3i);
-    i -= t;
-    o.b = t * C3;
-    // channel 2
-    t = mod(i, C2i);
-    i -= t;
-    o.g = t * C2;
-    // channel 1 (most significant)
-    o.r = i;
-    return o;
-}`;
-let CHANNEL_ENCODING_HELPERS_PROJECTION = `
-highp vec4 toP(highp float i) {
-    i += POffset;
-    i *= PBoundi;
+#define toV(i) (to((i * VBoundi) + 0.5))
+#define toP(i) (to((i * PBoundi) + 0.5))
+#define toD(i) (to(i * DBoundi))
+highp vec4 to(highp float i) {
     i = clamp(i, 0.0, 1.0);
     highp float t;
     highp vec4 o = vec4(0.0, 0.0, 0.0, 0.0);
@@ -208,11 +148,9 @@ const highp float sqrt2i = 1.0 / sqrt2;
 
 //#define ROUNDED_MOUSE_START
 #define ROUNDED_MOUSE_END
-${CHANNEL_ENCODING_MACROS}
+${CHANNEL_ENCODING_CONSTS}
 ${CHANNEL_DECODING_HELPERS}
-${CHANNEL_DECODING_HELPERS_PROJECTION}
 ${CHANNEL_ENCODING_HELPERS}
-${CHANNEL_ENCODING_HELPERS_PROJECTION}
 
 void main() {
     if (uInitializeFields) {
@@ -421,9 +359,8 @@ const mediump float LIGHT_MAX = 1.0;
 const mediump float LIGHT_DIF = LIGHT_MAX - LIGHT_MIN;
 
 #define FUTURE_INTERPOLATION
-${CHANNEL_ENCODING_MACROS}
+${CHANNEL_ENCODING_CONSTS}
 ${CHANNEL_DECODING_HELPERS}
-${CHANNEL_DECODING_HELPERS_PROJECTION}
 
 void main() {
     // Sample simulation at pixel
