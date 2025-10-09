@@ -138,7 +138,7 @@ const highp float INIT_DENSITY_HIGH = 10.0;
 
 const highp float DENSITY_DIFFUSION = 2.5;
 const highp float VELOCITY_DIFFUSION = 2.25;
-const highp float DENSITY_NOISE_SOURCE = 3.00;
+const highp float DENSITY_NOISE_SOURCE = 3.0;
 const highp float VELOCITY_NOISE_SOURCE = 1.0;
 
 const highp float MOUSE_MAX_DIST = 0.015;
@@ -517,23 +517,12 @@ void main() {
     density = fromD(texture(uTexD, vST));
     #endif
 
-    // outColor = vec4(0.5 + vel.x * VBoundi * 7.0, 0.5 + vel.y * VBoundi * 7.0, 0.5, 1.0);
+    // Create a normal of the fluid's surface
+    mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
 
-    // mediump float c = fromP(texture(uTexD, vST));
-    // c /= 20.0;
-    // outColor = vec4(c, c, c, 1.0);
+    // Calculate lighting
+    mediump float l = max(0.0, dot(-LIGHT_DIR, n));
+    l = l * LIGHT_DIF + LIGHT_MIN;
 
-    // // Create a normal of the fluid's surface
-    // mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
-
-    // // Calculate lighting
-    // mediump float l = max(0.0, dot(-LIGHT_DIR, n));
-    // l = l * LIGHT_DIF + LIGHT_MIN;
-
-    // outColor = COL * l;
-    outColor = COL * sqrt(density);
-    // outColor = COL * l * (density * 0.1 * 0.65 + 0.35);
-
-    // mediump vec2 mov = from(texture(uTex, vST));
-    // outColor = vec4(mov.x * 0.25 + 0.5, mov.y * 0.25 + 0.5, 1.0, 1.0);
+    outColor = COL * l * (sqrt(density * 0.2) * 0.65 + 0.35);
 }`;
