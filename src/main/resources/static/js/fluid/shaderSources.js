@@ -4,11 +4,10 @@
 // https://github.com/SRombauts/SimplexNoise/blob/master/src/SimplexNoise.cpp
 
 /////////////////////////////////////////////////////
-/*          ~~~ Globals for Debugging ~~~          */
+/*                ~~~ Globals ~~~                  */
 /////////////////////////////////////////////////////
 // Helpers to encode higher precision signed floats into the frame buffer.
 // A bit hacky, but it'll have to work.
-let FORCE_ONE_CHANNEL_ENCODING = false;
 let CHANNEL_ENCODING_CONSTS = `
 const highp float VBound = 0.025;
 const highp float VBoundi = (1.0 / VBound);
@@ -126,6 +125,7 @@ uniform mediump int uTexHeight;
 uniform highp float uAspect;
 
 uniform highp float uDeltaTime;
+uniform highp float uTime;
 
 #define MOUSE_BUFFER_SIZE 2
 uniform highp vec2 uMouseStart[MOUSE_BUFFER_SIZE];
@@ -136,19 +136,27 @@ const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
 const highp float INIT_DENSITY_LOW = 0.0;
 const highp float INIT_DENSITY_HIGH = 10.0;
 
-const highp float SOURCE_SPEED = 7.50;
 const highp float DENSITY_DIFFUSION = 2.5;
 const highp float VELOCITY_DIFFUSION = 2.25;
+const highp float DENSITY_NOISE_SOURCE = 3.00;
+const highp float VELOCITY_NOISE_SOURCE = 1.0;
 
 const highp float MOUSE_MAX_DIST = 0.015;
 const highp float MOUSE_AWAY_AMOUNT = 0.8;
 const highp float MOUSE_STRENGTH = 0.7;
 const highp float MOUSE_FALLOFF_EXP = 8.5; // must be high or the low-precision side effect of a hollow mouse influence is visible
 
-const highp float sqrt2 = 1.41421356237;
+const highp float NOISE_SCALE = 5.0;
+const highp vec3 NOISE_PER_AXIS_SCALE = vec3(1.0, 1.0, 1.0);
+const highp float NOISE_CHANGE_SPEED = 1.0;
+const highp float NOISE_TORUS_WIDTH = 5.0;
+
+const highp float PI = 3.14159; // put more digits in pi here!!!!!!!!!!!!!~~~~~~~~~~~~~~~~~~~~~~~~TODO
+const highp float TAU = 2.0 * 3.14159;
 
 //#define ROUNDED_MOUSE_START
 #define ROUNDED_MOUSE_END
+#define NOISE_TORUS_MAPPING
 ${CHANNEL_ENCODING_CONSTS}
 ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_ENCODING_HELPERS}
@@ -266,16 +274,35 @@ highp float simplex(highp vec3 pos) {
     return (n0 + n1 + n2 + n3) * 32.0;
 }
 
-const highp float NOISE_SCALE = 5.0;
-
 void main() {
+    // Noise calculation
+    // sample noise on surface of torus (so it loops in both directions)
+    highp vec3 noisePos;
+    #ifdef NOISE_TORUS_MAPPING
+    noisePos = vec3(
+        vST.x * TAU,
+        vST.y * TAU, 0.0);
+    noisePos = vec3(
+        sin(noisePos.y),
+        (cos(noisePos.y) + NOISE_TORUS_WIDTH) * sin(noisePos.x),
+        (cos(noisePos.y) + NOISE_TORUS_WIDTH) * cos(noisePos.x);
+
+    // somehow fit uAspect in to this!!!!!! after trig functions!!!!!!!!!!!~~~~~~~~~~~~~~~~TODO
+    // if the torus mapping even looks good...
+
+    #else
+    noisePos = vec3(vST.x * uAspect, vST.y, 0.0);
+    #endif
+    highp float noise = simplex(
+        noisePos * NOISE_PER_AXIS_SCALE * NOISE_SCALE
+        + vec3(0.0, 0.0, uTime * NOISE_CHANGE_SPEED));
+
     if (uInitializeFields) {
         outVelocityX = toV(INIT_VELOCITY.x);
         outVelocityY = toV(INIT_VELOCITY.y);
         outDensity = toD(
-            vST.x >= 0.0 && vST.x <= 0.4 &&
-            vST.y >= 0.5 && vST.y <= 1.0
-                ? INIT_DENSITY_HIGH : INIT_DENSITY_LOW);
+            (noise * 0.5 + 0.5) * (INIT_DENSITY_HIGH - INIT_DENSITY_LOW)
+            + INIT_DENSITY_LOW);
         return;
     }
 
@@ -283,16 +310,12 @@ void main() {
     highp vec2 newV = vec2(fromV(texture(uTexVX, vST)), fromV(texture(uTexVY, vST)));
     highp float w = uAspect / float(uTexWidth);
     highp float h = 1.0 / float(uTexHeight);
-    // sample noise on surface of torus (so it loops in both directions)
-    // highp vec3 noisePos = vec3(vST.x * uAspect, vST.y, 0.0);
-    // noisePos = vec3(sin(noisePos.x), (2.0 + cos(noisePos.x)) * sin(noisePos.y), (2.0 + cos(noisePos.x)) * cos(noisePos.y));
-    // highp float noise = simplex(noisePos * NOISE_SCALE);
 
     // Velocity calculation
     {
         // DEBUG! for storing temp values til the render stage
-        outVelocityTempX = texture(uTexVTempX, vST);
-        outVelocityTempY = texture(uTexVTempY, vST);
+        // outVelocityTempX = texture(uTexVTempX, vST);
+        // outVelocityTempY = texture(uTexVTempY, vST);
 
         // Get velocities around current for & projection
         // (n is -1, p is +1)
@@ -358,6 +381,10 @@ void main() {
             // Add in the mouse movement, some pushing away, some going with mouse movement
             newV += mouseInfluence * (mousePushDir * MOUSE_AWAY_AMOUNT + mouseDir);
 
+            // Add in some (very slight) noise-based velocity
+            highp float noiseAng = noise * TAU + 1.827384; // with a random offset so it's not too regular
+            newV += vec2(sin(noiseAng), cos(noiseAng)) * VELOCITY_NOISE_SOURCE * uDeltaTime;
+
             // Save initial velocity for diffuse step
             outVelocityTempX = toV(newV.x);
             outVelocityTempY = toV(newV.y);
@@ -417,15 +444,8 @@ void main() {
         highp float newD = fromD(texture(uTexD, vST));
 
         if ((uSimID & SIMID_INPUTS) == SIMID_INPUTS) {
-            // FOR DEBUG FLOW!
-            // Top left of the screen is a source
-            if (vST.x > 0.1 && vST.x < 0.2 &&
-                vST.y > 0.8 && vST.y < 0.9)
-                newD += SOURCE_SPEED * uDeltaTime;
-            // Bottom right of the screen is a sink
-            if (vST.x > 0.8 && vST.x < 0.9 &&
-                vST.y > 0.1 && vST.y < 0.2)
-                newD -= SOURCE_SPEED * uDeltaTime;
+            // Target density is based on changing noise map
+            newD += noise * DENSITY_NOISE_SOURCE * uDeltaTime;
 
             // Write initial density for diffusion steps to use
             outDensityTemp = toD(newD);
@@ -451,9 +471,7 @@ void main() {
             newD = fromD(texture(uTexD, vST - newV * uDeltaTime / vec2(w, h)));
         }
 
-        // outDensity = toD(newD);
-        outDensity = toD((simplex(vec3(vST.x * uAspect, vST.y, 0.0) * NOISE_SCALE) * 0.5 + 1.0) * 6.0);
-        // ^^^^ SIMPLY FOR DEBUG RENDERING ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        outDensity = toD(newD);
     }
 }`;
 

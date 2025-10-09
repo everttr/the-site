@@ -200,12 +200,13 @@ function tryUpdateRepeating(_ = null) {
         return;
 
     // Only render every N frames (because jeez it's expensive!)
-    updateSim(timeDeltaSinceLastIFrame / 1000.0 * Math.max(1, RENDER_FRAME_INTERVAL), isIFrame);
+    updateSim(timeDeltaSinceLastIFrame / 1000.0 * Math.max(1, RENDER_FRAME_INTERVAL),
+        simTime / 1000.0, isIFrame);
 
     if (focused)
         requestAnimationFrame(tryUpdateRepeating);
 }
-function updateSim(deltaTSinceLastIFrame, isIFrame) {
+function updateSim(deltaTSinceLastIFrame, timeSim, isIFrame) {
     // On start, arbitrarily assign which sim textures are input/output
     if (firstRender) {
         simTexDPrev = shaders.simTexD1;
@@ -223,7 +224,7 @@ function updateSim(deltaTSinceLastIFrame, isIFrame) {
     // Only do VERY expensive sim recalculation step every once in a while
     if (isIFrame) {
         if (curMousePos !== null) pushMousePos([curMousePos[0], curMousePos[1]]);
-        simStep(deltaTSinceLastIFrame);
+        simStep(deltaTSinceLastIFrame, timeSim);
         clearMousePos();
     }
     
@@ -234,7 +235,7 @@ function updateSim(deltaTSinceLastIFrame, isIFrame) {
     // (after final iteration, newest state is flipped to "previous" variable)
     renderScene(isIFrame ? 0.0 : deltaTSinceLastIFrame, simTexVXPrev, simTexVYPrev, simTexDPrev);
 }
-function simStep(deltaT) {
+function simStep(deltaT, timeSim) {
     // We update the sim using the simulation fragment shaders
 
     // Specify we render to framebuffer/ sim textures
@@ -327,6 +328,7 @@ function simStep(deltaT) {
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
     gl.uniform1f(shaders.sim.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
+    gl.uniform1f(shaders.sim.uniformLocs.simTime, timeSim);
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
 
     // Do a certain number of iterative steps to make it less chaotic
@@ -592,6 +594,7 @@ function initShaderPrograms() {
     let b1 = createShaderProgram("Fluid Simulation", shaders.sim,
         SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
         null, [
+            ["simTime", "uTime"],
             ["projectionSamplerX", "uTexVTempX"],
             ["projectionSamplerY", "uTexVTempY"],
             ["densityTempSampler", "uTexDTemp"],
