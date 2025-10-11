@@ -133,30 +133,29 @@ uniform highp vec2 uMouseDir[MOUSE_BUFFER_SIZE];
 uniform highp float uMouseMag[MOUSE_BUFFER_SIZE];
 
 const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
-const highp float INIT_DENSITY_LOW = 0.0;
 const highp float INIT_DENSITY_HIGH = 10.0;
 
-const highp float DENSITY_DIFFUSION = 2.5;
-const highp float VELOCITY_DIFFUSION = 2.25;
-const highp float DENSITY_NOISE_SOURCE = 3.0;
-const highp float VELOCITY_NOISE_SOURCE = 1.0;
+const highp float DENSITY_DIFFUSION = 1.25;
+const highp float VELOCITY_DIFFUSION = 1.75;
+const highp float DENSITY_NOISE_SOURCE = 0.375;
+const highp float VELOCITY_NOISE_SOURCE = 0.00000075;
 
 const highp float MOUSE_MAX_DIST = 0.015;
 const highp float MOUSE_AWAY_AMOUNT = 0.8;
 const highp float MOUSE_STRENGTH = 0.7;
 const highp float MOUSE_FALLOFF_EXP = 8.5; // must be high or the low-precision side effect of a hollow mouse influence is visible
 
-const highp float NOISE_SCALE = 5.0;
+const highp float NOISE_SCALE = 5.25;
 const highp vec3 NOISE_PER_AXIS_SCALE = vec3(1.0, 1.0, 1.0);
-const highp float NOISE_CHANGE_SPEED = 1.0;
-const highp float NOISE_TORUS_WIDTH = 5.0;
+const highp float NOISE_CHANGE_SPEED = 0.05;
+const highp float NOISE_TORUS_WIDTH = 2.0;
 
 const highp float PI = 3.14159; // put more digits in pi here!!!!!!!!!!!!!~~~~~~~~~~~~~~~~~~~~~~~~TODO
 const highp float TAU = 2.0 * 3.14159;
 
 //#define ROUNDED_MOUSE_START
 #define ROUNDED_MOUSE_END
-#define NOISE_TORUS_MAPPING
+//#define NOISE_TORUS_MAPPING
 ${CHANNEL_ENCODING_CONSTS}
 ${CHANNEL_DECODING_HELPERS}
 ${CHANNEL_ENCODING_HELPERS}
@@ -280,12 +279,12 @@ void main() {
     highp vec3 noisePos;
     #ifdef NOISE_TORUS_MAPPING
     noisePos = vec3(
-        vST.x * TAU,
+        vST.x * TAU + 3.75,
         vST.y * TAU, 0.0);
     noisePos = vec3(
         sin(noisePos.y),
-        (cos(noisePos.y) + NOISE_TORUS_WIDTH) * sin(noisePos.x),
-        (cos(noisePos.y) + NOISE_TORUS_WIDTH) * cos(noisePos.x);
+        (cos(noisePos.y) + NOISE_TORUS_WIDTH) * sin(noisePos.x) * uAspect,
+        (cos(noisePos.y) + NOISE_TORUS_WIDTH) * cos(noisePos.x) * uAspect);
 
     // somehow fit uAspect in to this!!!!!! after trig functions!!!!!!!!!!!~~~~~~~~~~~~~~~~TODO
     // if the torus mapping even looks good...
@@ -300,9 +299,7 @@ void main() {
     if (uInitializeFields) {
         outVelocityX = toV(INIT_VELOCITY.x);
         outVelocityY = toV(INIT_VELOCITY.y);
-        outDensity = toD(
-            (noise * 0.5 + 0.5) * (INIT_DENSITY_HIGH - INIT_DENSITY_LOW)
-            + INIT_DENSITY_LOW);
+        outDensity = toD((noise * 0.5 + 0.5) * INIT_DENSITY_HIGH);
         return;
     }
 
@@ -498,7 +495,7 @@ const mediump float LIGHT_MIN = 0.1;
 const mediump float LIGHT_MAX = 1.0;
 const mediump float LIGHT_DIF = LIGHT_MAX - LIGHT_MIN;
 
-#define FUTURE_INTERPOLATION
+//#define FUTURE_INTERPOLATION
 ${CHANNEL_ENCODING_CONSTS}
 ${CHANNEL_DECODING_HELPERS}
 
@@ -524,5 +521,5 @@ void main() {
     mediump float l = max(0.0, dot(-LIGHT_DIR, n));
     l = l * LIGHT_DIF + LIGHT_MIN;
 
-    outColor = COL * l * (sqrt(density * 0.2) * 0.65 + 0.35);
+    outColor = COL * l * (pow(density * 0.16, 2.0) * 0.65 + 0.35);
 }`;
