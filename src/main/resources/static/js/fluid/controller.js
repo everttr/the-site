@@ -10,6 +10,7 @@ const canvasSizeMin = 128;
 const canvasSizeMax = 1024;
 const canvasInactiveColor = "#77b2bd"
 const RENDER_FRAME_INTERVAL = 2; // renders every N frames
+const RENDER_PFRAMES = false; // whether or not to interpolate on the off frame
 const MIN_IFRAME_DIST_REALTIME_MS = 1000.0 / 25.0; // except it's more common on very low refresh-rate screens
 const SIM_SPEED_MULTIPLIER = 1.6; // just make it a bit more chaotic, to show off :)
 const SIMID_D_DIFFUSE = 1;
@@ -232,8 +233,10 @@ function updateSim(deltaTSinceLastIFrame, timeSim, isIFrame) {
     else pushMousePos([curMousePos[0], curMousePos[1]]);
 
     // Then render the changes
-    // (after final iteration, newest state is flipped to "previous" variable)
-    renderScene(isIFrame ? 0.0 : deltaTSinceLastIFrame, simTexVXPrev, simTexVYPrev, simTexDPrev);
+    if (isIFrame || RENDER_PFRAMES) {
+        // (after final iteration, newest state is flipped to "previous" variable)
+        renderScene(isIFrame ? 0.0 : deltaTSinceLastIFrame, simTexVXPrev, simTexVYPrev, simTexDPrev);
+    }
 }
 function simStep(deltaT, timeSim) {
     // We update the sim using the simulation fragment shaders
