@@ -201,7 +201,7 @@ function tryUpdateRepeating(_ = null) {
 
     // Only render every N frames (because jeez it's expensive!)
     updateSim(timeDeltaSinceLastIFrame / 1000.0 * Math.max(1, RENDER_FRAME_INTERVAL),
-        simTime / 1000.0, isIFrame);
+        timeSim / 1000.0, isIFrame);
 
     if (focused)
         requestAnimationFrame(tryUpdateRepeating);
@@ -324,9 +324,10 @@ function simStep(deltaT, timeSim) {
     }
 
     // Provide other simulation inputs
+    let rect = canvas.getBoundingClientRect();
     gl.uniform1i(shaders.sim.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.sim.uniformLocs.texHeight, curSimH);
-    gl.uniform1f(shaders.sim.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
+    gl.uniform1f(shaders.sim.uniformLocs.aspect, rect.width / rect.height);
     gl.uniform1f(shaders.sim.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
     gl.uniform1f(shaders.sim.uniformLocs.simTime, timeSim);
     gl.uniform1i(shaders.sim.uniformLocs.firstRender, firstRender);
@@ -477,9 +478,10 @@ function renderScene(deltaT, texVelX, texVelY, texDens) {
     gl.uniform1i(shaders.draw.uniformLocs.densitySampler, 2);
     
     // Other simulation inputs
+    let rect = canvas.getBoundingClientRect();
     gl.uniform1i(shaders.draw.uniformLocs.texWidth, curSimW);
     gl.uniform1i(shaders.draw.uniformLocs.texHeight, curSimH);
-    gl.uniform1f(shaders.draw.uniformLocs.aspect, gl.canvas.width / gl.canvas.height);
+    gl.uniform1f(shaders.draw.uniformLocs.aspect, rect.width / rect.height);
     gl.uniform1f(shaders.draw.uniformLocs.deltaTime, deltaT * SIM_SPEED_MULTIPLIER);
 
     // Draw 'em!
