@@ -9,7 +9,7 @@
 // Helpers to encode higher precision signed floats into the frame buffer.
 // A bit hacky, but it'll have to work.
 let CHANNEL_ENCODING_CONSTS = `
-const highp float VBound = 0.025;
+const highp float VBound = 0.0025;
 const highp float VBoundi = (1.0 / VBound);
 const highp float PBound = 20.0;
 const highp float PBoundi = (1.0 / PBound);
@@ -134,10 +134,11 @@ uniform highp float uMouseMag[MOUSE_BUFFER_SIZE];
 
 const highp vec2 INIT_VELOCITY = vec2(0.0, 0.0);
 const highp float INIT_DENSITY_HIGH = 10.0;
+const highp float INIT_DENSITY_LOW = 1.0;
 
 const highp float DENSITY_DIFFUSION = 1.25;
 const highp float VELOCITY_DIFFUSION = 1.75;
-const highp float DENSITY_NOISE_SOURCE = 0.375;
+const highp float DENSITY_NOISE_SOURCE = 0.4;
 const highp float VELOCITY_NOISE_SOURCE = 0.00000075;
 
 const highp float MOUSE_MAX_DIST = 0.015;
@@ -145,7 +146,7 @@ const highp float MOUSE_AWAY_AMOUNT = 0.8;
 const highp float MOUSE_STRENGTH = 0.7;
 const highp float MOUSE_FALLOFF_EXP = 8.5; // must be high or the low-precision side effect of a hollow mouse influence is visible
 
-const highp float NOISE_SCALE = 5.25;
+const highp float NOISE_SCALE = 3.6;
 const highp vec3 NOISE_PER_AXIS_SCALE = vec3(1.0, 1.0, 1.0);
 const highp float NOISE_CHANGE_SPEED = 0.05;
 const highp float NOISE_TORUS_WIDTH = 2.0;
@@ -299,7 +300,7 @@ void main() {
     if (uInitializeFields) {
         outVelocityX = toV(INIT_VELOCITY.x);
         outVelocityY = toV(INIT_VELOCITY.y);
-        outDensity = toD((noise * 0.5 + 0.5) * INIT_DENSITY_HIGH);
+        outDensity = toD((noise * 0.5 + 0.5) * (10.0));
         return;
     }
 
@@ -310,10 +311,6 @@ void main() {
 
     // Velocity calculation
     {
-        // DEBUG! for storing temp values til the render stage
-        // outVelocityTempX = texture(uTexVTempX, vST);
-        // outVelocityTempY = texture(uTexVTempY, vST);
-
         // Get velocities around current for & projection
         // (n is -1, p is +1)
         // ((clipping isn't a problem b/c of wrapping))
@@ -486,18 +483,37 @@ uniform mediump int uTexHeight;
 uniform mediump float uDeltaTime;
 uniform mediump float uAspect;
 
-const mediump vec4 COL = vec4(0.275, 0.573, 0.988, 1.0);
+const mediump vec3 COL_LOW = vec3(0.614, 0.84, 0.19);
+const mediump vec3 COL_HIGH = vec3(0.503, 1.0, 0.67);
+const mediump float COL_TINT_HUE = 0.8;
 
-const mediump float UPRIGHTNESS = 0.2; // how much the normals tend upwards
+const mediump float UPRIGHTNESS = 0.00025; // how much the normals tend upwards
 
-const mediump vec3  LIGHT_DIR = normalize(vec3(-0.2, 0.4, -1.0));
-const mediump float LIGHT_MIN = 0.1;
-const mediump float LIGHT_MAX = 1.0;
-const mediump float LIGHT_DIF = LIGHT_MAX - LIGHT_MIN;
+const mediump vec3 LIGHT_DIR = normalize(vec3(-1.0, -1.0, 0.0));
+const mediump float LIGHT_LIGHTNESS_STRENGTH = 0.6;
+const mediump float LIGHT_TINTING_STRENGTH = 0.9;
 
 //#define FUTURE_INTERPOLATION
+//#define VELOCITY_TINTING
 ${CHANNEL_ENCODING_CONSTS}
 ${CHANNEL_DECODING_HELPERS}
+
+mediump vec3 hsl2rgb(mediump vec3 hsl)
+{
+    mediump float c = (1.0 - abs(2.0 * hsl.z - 1.0)) * hsl.y;
+    mediump float slice = hsl.x * 6.0;
+    mediump float x = c * (1.0 - abs(mod(slice, 2.0) - 1.0));
+    mediump float m = hsl.z - c * 0.5;
+
+    return vec3(
+        slice < 1.0 ? vec3(c, x, 0.0) :
+        slice < 2.0 ? vec3(x, c, 0.0) :
+        slice < 3.0 ? vec3(0.0, c, x) :
+        slice < 4.0 ? vec3(0.0, x, c) :
+        slice < 5.0 ? vec3(x, 0.0, c) :
+                      vec3(c, 0.0, x))
+        + vec3(m, m, m);
+}
 
 void main() {
     // Sample simulation at pixel
@@ -518,8 +534,14 @@ void main() {
     mediump vec3 n = normalize(vec3(vel.x, vel.y, UPRIGHTNESS));
 
     // Calculate lighting
-    mediump float l = max(0.0, dot(-LIGHT_DIR, n));
-    l = l * LIGHT_DIF + LIGHT_MIN;
+    mediump float l = dot(-LIGHT_DIR, n);
 
-    outColor = COL * l * (pow(density * 0.16, 2.0) * 0.65 + 0.35);
+    mediump vec3 col = mix(COL_LOW, COL_HIGH, max(0.0, min(1.0, pow(density * 0.105, 1.825))));
+    #ifdef VELOCITY_TINTING
+    col.r = mix(col.r, COL_TINT_HUE, pow(abs(l), 0.6) * LIGHT_TINTING_STRENGTH);
+    #else
+    col.z *= 1.0 + l * LIGHT_LIGHTNESS_STRENGTH;
+    col.z = max(0.0, min(1.0, col.z));
+    #endif
+    outColor = vec4(hsl2rgb(col), 1.0);
 }`;
