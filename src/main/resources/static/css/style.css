@@ -1,16 +1,22 @@
 /* Constants! */
 :root
 {
-    --background1: rgb(119, 178, 189);
-    --background2: rgb(109, 185, 199);
-    --shadow: rgba(63, 46, 45, 0.514);
-    --highlight1: rgb(208, 178, 223);
-    --highlight2: rgb(161, 126, 170);
-    --super-stressed-text: rgb(54, 23, 231);
-    --stressed-text: rgb(0, 0, 0);
-    --link-text: rgb(241, 112, 95);
-    --link-text-highlighted: rgb(250, 135, 120);
-    --unstressed-text: rgb(65, 63, 63);
+    --background1: #8EFEFE;
+    --background2: #58F8F8;
+    --background3: #0DA7A7;
+    --background-trans: #87ffff8e;
+    --shadow1: #187070ce;
+    --shadow2: #b4743fce;
+    --highlight1: #FFC28F;
+    --highlight2: #FFA55B;
+    --highlight3: #FF9034;
+    --super-stressed-text: #1861ff;
+    --stressed-text: #000000;
+    --title-text: #272736;
+    --title-text-highlighted: #1e62a1;
+    --link-text: #f1841d;
+    --link-text-highlighted: #f37f5b;
+    --unstressed-text: #3b3a3a;
 }
 
 /* Generics/overrides */
@@ -31,15 +37,23 @@ a
 {
     text-decoration: underline;
     color: var(--link-text);
-    -webkit-transition: color 0.1s;
-       -moz-transition: color 0.1s;
-         -o-transition: color 0.1s;
-            transition: color 0.1s;
+    -webkit-transition: color 0.0875s;
+       -moz-transition: color 0.0875s;
+         -o-transition: color 0.0875s;
+            transition: color 0.0875s;
+}
+#page-header a
+{
+    color: var(--title-text);
 }
 a:hover
 {
     cursor: pointer;
     color: var(--link-text-highlighted)
+}
+#page-header a:hover
+{
+    color: var(--title-text-highlighted)
 }
 
 /* Main page organization */
@@ -50,40 +64,37 @@ body
     padding: 0;
     margin: 0;
     border: 0;
-    display: flex;
-    flex-direction: column;
-    align-content: center;
 }
 #page-header
 {
-    /* position: fixed; */
+    position: fixed;
     top: 0;
     width: 100%;
     height: 40px;
     padding: 5px 0 5px;
     margin: 0;
-    background-color: var(--highlight1);
+    background-color: var(--highlight2);
     color: var(--unstressed-text);
     text-align: center;
     align-content: space-evenly;
-    box-shadow: 0px 2px 10px var(--shadow);
+    box-shadow: 0px 2px 10px var(--shadow2);
     font-size: 30px;
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif  ;
     font-weight: bolder;
 }
 #page-footer
 {
-    /* position: fixed; */
+    position: fixed;
     bottom: 0;
     width: 100%;
     height: 20px;
     padding: 5px 0 5px;
     margin: 0;
-    background-color: var(--highlight1);
+    background-color: var(--highlight2);
     color: var(--unstressed-text);
     text-align: center;
     align-content: space-evenly;
-    box-shadow: 0px -2px 10px var(--shadow);
+    box-shadow: 0px -2px 10px var(--shadow2);
 }
 #main-scroller
 {
@@ -105,23 +116,30 @@ body
 }
 #floating-body
 {
-    display: none;
     position: absolute;
     width: 850px;
     max-width: 75%;
     height: max-content;
     max-height: 75%;
     flex: 1 1 auto;
-    background-color: var(--background2);
+    background-color: var(--background-trans);
     color: var(--stressed-text);
     align-self: center;
-    padding: 15px 25px;
+    padding: 18px 45px 30px 45px;
     border-radius: 10px;
     border-width: 8px;
     border-color: var(--highlight1);
+    animation: 10s linear infinite alternate none running border-shift;
     border-style: solid;
     margin: 20px 25px;
-    box-shadow: 0px 0px 12px var(--shadow);
+    box-shadow: 0px 0px 12px var(--shadow2);
+}
+@keyframes border-shift {
+    from { border-color: var(--highlight1); }
+    to { border-color: var(--highlight3); }
+}
+#floating-body a {
+    text-shadow: 1px 1px 2px var(--shadow2);
 }
 
 /* Lower-level specifics */
@@ -135,8 +153,9 @@ body
 {
     color: var(--super-stressed-text);
     text-align: center;
-    text-shadow: 2px 2px 2px var(--shadow);
+    text-shadow: 2px 2px 2px var(--shadow1);
     font-size: 1.5em;
+    font-weight: 600;
     padding: 0;
     margin: 5px 0;
 }

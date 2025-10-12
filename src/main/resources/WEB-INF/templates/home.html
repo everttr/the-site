@@ -19,15 +19,6 @@
     <script th:src="@{static/js/fluid/controller.js}" type="module" th:id="fluid-controller-js" defer></script>
 </head>
 <body>
-    <!-- Header -->
-    <div th:replace="~{fragments/header :: header}" class="container">
-        <header th:fragment="header" id="page-header">
-            <div>
-                <a th:href="@{/home}">The Site.</a>
-            </div>
-        </header>
-    </div>
-
     <div id="main-scroller">
         <!-- Shader Show Off Area -->
         <canvas id="shader-canvas" width="480" height="480"></canvas>
@@ -51,6 +42,15 @@
                 </ul>
             </div>
         </div>
+    </div>
+
+    <!-- Header -->
+    <div th:replace="~{fragments/header :: header}" class="container">
+        <header th:fragment="header" id="page-header">
+            <div>
+                <a th:href="@{/home}">The Site.</a>
+            </div>
+        </header>
     </div>
 
     <!-- Footer -->

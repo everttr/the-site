@@ -8,7 +8,7 @@
 const canvasScale = 1.0 / 3.0;
 const canvasSizeMin = 128;
 const canvasSizeMax = 1024;
-const canvasInactiveColor = "#77b2bd"
+const canvasInactiveColor = "#8EFEFE"
 const RENDER_FRAME_INTERVAL = 2; // renders every N frames
 const RENDER_PFRAMES = false; // whether or not to interpolate on the off frame
 const MIN_IFRAME_DIST_REALTIME_MS = 1000.0 / 25.0; // except it's more common on very low refresh-rate screens
