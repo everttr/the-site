@@ -178,9 +178,6 @@ body
     font-weight: 600;
     padding: 0;
     margin: 5px 0;
-}
-:active #splash
-{
     animation: 0.7s cubic-bezier(.52,.07,.74,.22) infinite alternate both running splash-jump;
 }
 @keyframes splash-jump {
