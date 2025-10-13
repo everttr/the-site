@@ -14,9 +14,9 @@
     --super-stressed-shadow: #0e5381d5;
     --stressed-text: #000000;
     --title-text: #3b3026;
-    --title-text-highlighted: #1e62a1;
+    --title-text-highlighted: #3980c2;
     --link-text: #0054c2;
-    --link-text-highlighted: #1f93d9;
+    --link-text-highlighted: #abdefd;
     --unstressed-text: #3b3a3a;
 }
 
@@ -112,6 +112,7 @@ body
 #shader-canvas
 {
     position: absolute;
+    top: 0px;
     width: 100%;
     height: 100%;
 }
@@ -126,20 +127,25 @@ body
     background-color: var(--background-trans);
     color: var(--stressed-text);
     align-self: center;
-    padding: 18px 45px 30px 45px;
+    padding: 13px 45px 30px 45px;
+    margin: 20px 25px;
     border-radius: 10px;
     border-width: 8px;
-    border-color: var(--highlight1);
-    animation: 10s linear infinite alternate none running border-shift;
     border-style: solid;
-    margin: 20px 25px;
+    border-color: var(--highlight1);
     box-shadow: 0px 0px 12px var(--shadow2);
 }
-@keyframes border-shift {
+#floating-body:hover
+{
+    animation: 10s linear infinite alternate both running border-shift;
+}
+@keyframes border-shift
+{
     from { border-color: var(--highlight1); }
     to { border-color: var(--highlight3); }
 }
-#floating-body a {
+#floating-body a
+{
     text-shadow: 1px 1px 2px var(--shadow1);
 }
 
@@ -159,6 +165,14 @@ body
     font-weight: 600;
     padding: 0;
     margin: 5px 0;
+}
+:active #splash
+{
+    animation: 0.7s cubic-bezier(.52,.07,.74,.22) infinite alternate both running splash-jump;
+}
+@keyframes splash-jump {
+    from { transform: translate(0, -2px); }
+    to { transform: translate(0, 12px); }
 }
 #floating-body h2
 {
