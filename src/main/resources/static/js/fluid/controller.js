@@ -498,7 +498,7 @@ function renderScene(deltaT, texVelX, texVelY, texDens) {
 /*          ~~~ Initialization ~~~          */
 //////////////////////////////////////////////
 
-function init() {
+function initFluidSim() {
     if (DEBUG_VERBOSITY >= 2) {
         console.log(`Fluid Sim Vert:\n${SHADERSTR_FLUID_SIM_VERT}`);
         console.log(`Fluid Sim Frag:\n${SHADERSTR_FLUID_SIM_FRAG}`);
@@ -516,7 +516,7 @@ function init() {
         // Start render loop
         tryUpdateRepeating();
 
-        // Focus/unfocus performance evetns
+        // Focus/unfocus performance events
         window.addEventListener("focus", () => {
             // ignore if already focused somehow
             if (focused)
@@ -554,6 +554,9 @@ function init() {
         window.addEventListener("resize", (event) => {
             pollResizeCanvas();
         });
+
+        // Now unveil the sim itself
+        changeSimVeilVisibility(false);
     }
 }
 function initCanvas() {

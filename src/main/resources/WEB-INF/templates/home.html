@@ -17,11 +17,15 @@
     </script>
     <script th:src="@{static/js/fluid/shaderSources.js}" type="module" th:id="shader-source-js" defer></script>
     <script th:src="@{static/js/fluid/controller.js}" type="module" th:id="fluid-controller-js" defer></script>
+    <script th:src="@{static/js/page/navigation.js}" type="module" th:id="nav-controller-js" defer></script>
 </head>
 <body>
     <div id="main-scroller">
         <!-- Shader Show Off Area -->
-        <canvas id="shader-canvas" width="480" height="480"></canvas>
+        <div>
+            <canvas id="shader-canvas" width="480" height="480"></canvas>
+            <div id="shader-canvas-veil"></div>
+        </div>
         <!-- Main Body -->
         <div id="floating-body">
             <!-- Splash -->
@@ -67,17 +71,21 @@
     <!-- REMOVED IN PRODUCTION. This is for local testing because of cross-domain CORS rules -->
     <script id="fluid-controller-js" src="../../static/js/fluid/controller.js" defer></script>
     <script id="shader-source-js" src="../../static/js/fluid/shaderSources.js" defer></script>
+    <script id="nav-controller-js" src="../../static/js/page/navagation.js" defer></script>
 </div>
 <script id="init-script">
-    const helperScriptCount = 3;
+    const helperScriptCount = 4;
     var helperScriptsLoaded = 0;
     function pollForInit(name) {
-        if (++helperScriptsLoaded == helperScriptCount)
-            init();
+        if (++helperScriptsLoaded == helperScriptCount) {
+            initNavigation();
+            initFluidSim();
+        }
     }
 
     document.getElementById("gl-matrix-js").addEventListener("load", () => pollForInit("gl-matrix"));
-    document.getElementById("shader-source-js").addEventListener("load", () => pollForInit("shader-source"));
     document.getElementById("fluid-controller-js").addEventListener("load", () => pollForInit("fluid-controller"));
+    document.getElementById("shader-source-js").addEventListener("load", () => pollForInit("shader-source"));
+    document.getElementById("nav-controller-js").addEventListener("load", () => pollForInit("nav-controller"));
 </script>
 </html>
