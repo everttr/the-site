@@ -20,11 +20,11 @@
     <script th:src="@{static/js/page/navigation.js}" type="module" th:id="nav-controller-js" defer></script>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Site Header -->
     <div th:replace="~{fragments/header :: header}" class="container">
         <header th:fragment="header" id="page-header" class="page-sandwich-bun">
             <div>
-                <a th:href="@{/home}">The Site.</a>
+                <a class="page-link" dest-id="home">The Site.</a>
             </div>
         </header>
     </div>
@@ -36,7 +36,7 @@
             <div id="shader-canvas-veil"></div>
         </div>
         <!-- Main Body -->
-        <div id="floating-body">
+        <div class="floating-body" page-id="home">
             <!-- Splash -->
             <div class="body-container">
                 <div id="splash">
@@ -48,16 +48,39 @@
             <div class="body-container paragraph-container">
                 <h2>Pages:</h2>
                 <ul>
-                    <li th:each="page: ${pageRefs}">
-                        <p><a th:text="${page.name}" th:href="${page.location}">Example page with link</a></p>
+                    <li th:each="page: ${pages}">
+                        <p><a class="page-link" th:text="${page.title}" dest-id="test" th:dest-id="${page.id}">Example page with link</a></p>
                         <p th:text="${page.description}" class="paragraph">Example description</p>
                     </li>
                 </ul>
             </div>
         </div>
+
+        <div th:each="page: ${pages}" class="floating-body inactive" page-id="test" th:page-id="${page.id}">
+            <!-- Page Header -->
+            <div class="body-container page-header">
+                <!-- Back Button -->
+                <div class="page-back-button unselectable page-link" dest-id="home">
+                    <-
+                </div>
+                <!-- Page Title -->
+                <div class="page-title">
+                    <h2 th:text="${page.title}">Example Page Title</h2>
+                </div>
+            </div>
+
+            <!-- Page Body -->
+            <div class="body-container">
+                <div class="page-title">
+                    <div th:fragment="${page.fragment}">
+                        <p class="paragraph">Here is an example of a writeup for this particular page/project.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Footer -->
+    <!-- Site Footer -->
     <div th:replace="~{fragments/footer :: footer}">
         <footer th:fragment="footer" id="page-footer" class="page-sandwich-bun">
             <div id="footer-date">
@@ -78,8 +101,8 @@
     var helperScriptsLoaded = 0;
     function pollForInit(name) {
         if (++helperScriptsLoaded == helperScriptCount) {
-            initNavigation();
-            initFluidSim();
+            try { initNavigation(); }
+            finally { initFluidSim(); }
         }
     }
 

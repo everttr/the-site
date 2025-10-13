@@ -32,7 +32,7 @@ const SIM_V_PROJECT2_R_COUNT = 3 + SIM_V_PROJECT2_G_COUNT;
 const SIM_V_PROJECT2_A_COUNT = 1 + SIM_V_PROJECT2_R_COUNT;
 const MOUSE_ARGS_BUFFER_SIZE = RENDER_FRAME_INTERVAL;
 const MOUSE_POS_BUFFER_SIZE = MOUSE_ARGS_BUFFER_SIZE + 1;
-const DEBUG_VERBOSITY = 2;
+const DEBUG_VERBOSITY = 0;
 // Plain Globals
 var canvas;
 var gl;
@@ -153,7 +153,6 @@ function pollResizeCanvas() {
                 nearestPowerOf2(
                     Math.ceil(canvasRect.height * canvasScale)))));
 
-    console.log(`resized! old width: ${curCanvW}, new: ${desiredW}, old height: ${curCanvH}, new: ${desiredH}`);
     if (// Always refresh if not been sized yet
         curCanvW === undefined || curCanvH === undefined ||
         // Otherwise, only refresh when above a certain threshold
