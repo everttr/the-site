@@ -20,6 +20,15 @@
     <script th:src="@{static/js/page/navigation.js}" type="module" th:id="nav-controller-js" defer></script>
 </head>
 <body>
+    <!-- Header -->
+    <div th:replace="~{fragments/header :: header}" class="container">
+        <header th:fragment="header" id="page-header" class="page-sandwich-bun">
+            <div>
+                <a th:href="@{/home}">The Site.</a>
+            </div>
+        </header>
+    </div>
+
     <div id="main-scroller">
         <!-- Shader Show Off Area -->
         <div>
@@ -48,18 +57,9 @@
         </div>
     </div>
 
-    <!-- Header -->
-    <div th:replace="~{fragments/header :: header}" class="container">
-        <header th:fragment="header" id="page-header">
-            <div>
-                <a th:href="@{/home}">The Site.</a>
-            </div>
-        </header>
-    </div>
-
     <!-- Footer -->
     <div th:replace="~{fragments/footer :: footer}">
-        <footer th:fragment="footer" id="page-footer">
+        <footer th:fragment="footer" id="page-footer" class="page-sandwich-bun">
             <div id="footer-date">
                 Server Time: the <span th:text="${day}">Nth</span> day of the <span th:text="${month}">Nth</span> month of the <span th:text="${year}">Nth</span> year CE.
             </div>
