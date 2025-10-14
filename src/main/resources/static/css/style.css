@@ -5,7 +5,7 @@
     --background1: #27beec;
     --background2: #298EC4;
     --background3: #116FA2;
-    --background-trans: #c57e288f;
+    --background-trans: #db943ca8;
     --shadow1: #1a5a7cbd;
     --shadow2: #a5681dbd;
     --highlight1: #ffcd8f;
@@ -17,7 +17,7 @@
     --title-text: #3b3026;
     --title-text-highlighted: #3980c2;
     --title-text-clicked: #55a3ec;
-    --link-text: #0054c2;
+    --link-text: #3347fa;
     --link-text-highlighted: #abdefd;
     --link-text-clicked: #c1e7ff;
     --unstressed-text: #3b3a3a;
@@ -55,6 +55,7 @@ a
        -moz-transition: color var(--transition-time);
          -o-transition: color var(--transition-time);
             transition: color var(--transition-time);
+    text-shadow: 1px 1px 3px var(--shadow1);
 }
 #page-header a
 {
@@ -180,10 +181,6 @@ body
     from { border-color: var(--highlight1); }
     to { border-color: var(--highlight3); }
 }
-.floating-body a
-{
-    text-shadow: 1px 1px 2px var(--shadow1);
-}
 .floating-body.inactive
 {
     display: none;
@@ -193,9 +190,9 @@ body
     position: absolute;
     top: 14px;
     left: 14px;
-    width: min-content;
-    aspect-ratio: 1;
-    padding: 7px;
+    width: 24px;
+    height: 24px;
+    padding: 5px;
     border-radius: 7px;
     border-width: 5px;
     border-style: solid;
@@ -206,7 +203,8 @@ body
         background-color var(--transition-time);
     box-shadow: 2px 2px 5px var(--shadow1);
     text-align: center;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    font-size: 22px;
     font-weight: bold;
 }
 .page-back-button:hover
@@ -217,7 +215,12 @@ body
 .page-back-button:active
 {
     border-color: var(--background0);
-    transform: scale(0.9);
+    transform: translate(2px, 2px);
+}
+.page-back-button img
+{
+    width: 24px;
+    height: 24px;
 }
 
 /* Lower-level specifics */
@@ -269,4 +272,21 @@ body
     color: var(--super-stressed-text);
     text-shadow: 2px 2px 3px var(--super-stressed-shadow);
     text-align: center;
+}
+.img-holder
+{
+    text-align: center;
+}
+.img-holder img
+{
+    max-width: 90%;
+    max-height: 425px;
+    width: auto;
+    height: auto;
+    margin: 15px;
+    border-radius: 10px;
+    border-width: 5px;
+    border-style: outset;
+    border-color: var(--background1);
+    box-shadow: 0px 0px 6px var(--shadow1);
 }
