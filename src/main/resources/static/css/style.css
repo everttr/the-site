@@ -5,7 +5,7 @@
     --background1: #27beec;
     --background2: #298EC4;
     --background3: #116FA2;
-    --background-trans: #fca73f81;
+    --background-trans: #c57e288f;
     --shadow1: #1a5a7cbd;
     --shadow2: #a5681dbd;
     --highlight1: #ffcd8f;
@@ -101,6 +101,7 @@ body
     color: var(--unstressed-text);
     text-align: center;
     align-content: space-evenly;
+    flex: 0 0 auto;
 }
 #page-header
 {
@@ -112,16 +113,18 @@ body
 }
 #page-footer
 {
-    height: 22px;
+    min-height: 22px;
+    height: min-content;
     box-shadow: 0px -3px 10px var(--shadow2);
 }
 #main-scroller
 {
     position: relative;
     width: 100vw;
-    height: 100vh;
+    height: 100%;
     color: var(--stressed-text);
     background-color: var(--background1);
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -149,13 +152,17 @@ body
 }
 .floating-body
 {
-    position: absolute;
+    position: relative;
     z-index: 2;
-    width: 850px;
+    width: 950px;
     max-width: 75%;
     height: max-content;
-    max-height: 75%;
-    flex: 1 1 auto;
+    max-height: 75vh;
+    flex: 0 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    scrollbar-color: var(--highlight1) var(--background2);
     background-color: var(--background-trans);
     color: var(--stressed-text);
     align-self: center;
@@ -184,8 +191,8 @@ body
 .page-back-button
 {
     position: absolute;
-    top: 12px;
-    left: 12px;
+    top: 14px;
+    left: 14px;
     width: min-content;
     aspect-ratio: 1;
     padding: 7px;
@@ -223,8 +230,8 @@ body
 #splash
 {
     color: var(--super-stressed-text);
-    text-align: center;
     text-shadow: 2px 2px 3px var(--super-stressed-shadow);
+    text-align: center;
     font-size: 1.5em;
     font-weight: 600;
     padding: 0;
@@ -252,4 +259,14 @@ body
 .floating-body li p
 {
     margin: 5px 0;
+}
+.page-header
+{
+    padding: 0px 25px 10px 25px;
+}
+.page-title
+{
+    color: var(--super-stressed-text);
+    text-shadow: 2px 2px 3px var(--super-stressed-shadow);
+    text-align: center;
 }
