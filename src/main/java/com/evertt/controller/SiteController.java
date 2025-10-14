@@ -53,6 +53,8 @@ public class SiteController {
         }
     }
     private static final List<PageRef> PAGE_REFS = List.of(
+        // this way of referencing fragments "unwrapped" is depricated, however as far as I'm aware there's no way to have a nested
+        // expression inside of the ~{wrapped fragments}, so I guess I'll have to live with the billion warning messages.
         new PageRef("Test Page #1", "test1", "fragments/pages/test1", "The first test page. Unfortunately, this one is the worst..."),
         new PageRef("Test Page #2", "test2", "fragments/pages/test2", "The second(!) test page. This one is the best!"),
         new PageRef("Test Page #3", "test3", "fragments/pages/test3", "The third test page. This one has some quality that rhymes with \"best\", because I guess we're going with an ABB scheme???")
