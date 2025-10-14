@@ -20,6 +20,7 @@ window.changeSimVeilVisibility = changeSimVeilVisibility;
 function gotoPage(id) {
     // Disable all pages except for the one with that ID
     var found = false;
+    var activeIndex = -1;
     for (let i = 0; i < pageDestinations.length; ++i) {
         if (pageDestinations.item(i).getAttribute('page-id') == id) {
             pageDestinations.item(i).classList.remove('inactive');
@@ -30,6 +31,15 @@ function gotoPage(id) {
     }
     if (!found) {
         console.error(`Cannot jump to page; page of ID \"${id}\" not found.`);
+        // Revert changes if an error was made
+        if (activeIndex >= 0) {
+            for (let i = 0; i < pageDestinations.length; ++i) {
+                if (i == activeIndex)
+                    pageDestinations.item(i).classList.remove('inactive');
+                else
+                    pageDestinations.item(i).classList.add('inactive');
+            }
+        }
         return;
     }
     if (DEBUG_VERBOSITY_NAV >= 1)
