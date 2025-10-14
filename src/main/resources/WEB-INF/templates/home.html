@@ -94,7 +94,7 @@
 
             <!-- Page Body -->
             <div class="body-container">
-                <div th:fragment="${page.fragment}">
+                <div th:replace="${page.fragment}">
                     <p class="paragraph">Here is an example of a writeup for this particular page/project.</p>
                 </div>
             </div>

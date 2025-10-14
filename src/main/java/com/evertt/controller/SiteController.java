@@ -53,9 +53,9 @@ public class SiteController {
         }
     }
     private static final List<PageRef> PAGE_REFS = List.of(
-        new PageRef("Test Page #1", "test1", "test1", "The first test page. Unfortunately, this one is the worst..."),
-        new PageRef("Test Page #2", "test2", "test2", "The second(!) test page. This one is the best!"),
-        new PageRef("Test Page #3", "test3", "test3", "The third test page. This one has some quality that rhymes with \"best\", because I guess we're going with an ABB scheme???")
+        new PageRef("Test Page #1", "test1", "fragments/pages/test1", "The first test page. Unfortunately, this one is the worst..."),
+        new PageRef("Test Page #2", "test2", "fragments/pages/test2", "The second(!) test page. This one is the best!"),
+        new PageRef("Test Page #3", "test3", "fragments/pages/test3", "The third test page. This one has some quality that rhymes with \"best\", because I guess we're going with an ABB scheme???")
     );
 
     // Attributes, etc. needed for most page renders
