@@ -1,5 +1,7 @@
 // Control script for the normal webpage by itself!
 
+const DEBUG_VERBOSITY_NAV = 0;
+
 //////////////////////////////////////////////
 /*             ~~~ Helpers ~~~              */
 //////////////////////////////////////////////
@@ -27,10 +29,11 @@ function gotoPage(id) {
         pageDestinations.item(i).classList.add('inactive');
     }
     if (!found) {
-        console.log(`Cannot jump to page; page of ID \"${id}\" not found.`);
+        console.error(`Cannot jump to page; page of ID \"${id}\" not found.`);
         return;
     }
-    console.log(`Successfully jumped to page with ID \"${id}\".`);
+    if (DEBUG_VERBOSITY_NAV >= 1)
+        console.log(`Successfully jumped to page with ID \"${id}\".`);
 }
 
 //////////////////////////////////////////////
@@ -43,10 +46,15 @@ window.initNavigation = function initNavigation() {
     // Find all destination pages
     pageDestinations = document.getElementsByClassName('floating-body');
     // Find all elements with links & make them redirect to their desired page
-    pageLinks = document.getElementsByClassName('page-link');
-    for (let i = 0; i < pageLinks.length; ++i) {
-        pageLinks.item(i).addEventListener('click', (event) => {
-            gotoPage(event.target.getAttribute('dest-id'));
+    let links = document.getElementsByClassName('page-link');
+    pageLinks = Array(links.length);
+    for (let i = 0; i < links.length; ++i) {
+        pageLinks[i] = {
+            link: links.item(i),
+            dest: links.item(i).getAttribute('dest-id')
+        }
+        pageLinks[i].link.addEventListener('click', () => {
+            gotoPage(pageLinks[i].dest);
         });
     }
 }
