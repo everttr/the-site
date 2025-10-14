@@ -47,7 +47,7 @@
     <div th:replace="~{fragments/header :: header}" class="container">
         <header th:fragment="header" id="page-header" class="page-sandwich-bun">
             <div>
-                <a class="page-link" dest-id="home">The Site.</a>
+                <a class="page-link" dest-id="home">Reed Evertt's "The Site."</a>
             </div>
         </header>
     </div>
@@ -61,7 +61,7 @@
         <!-- Main Body -->
         <div class="floating-body" page-id="home">
             <!-- Splash -->
-            <div class="body-container">
+            <div class="body-container" id="splash-container">
                 <div id="splash">
                     <p th:text="${splashText}">Example Splash!</p>
                 </div>
@@ -69,11 +69,27 @@
 
             <!-- Content -->
             <div class="body-container paragraph-container">
-                <h2>Pages:</h2>
+                <p class="paragraph">
+                    I'm a senior at Oregon State University majoring in Computer Science and minoring in Mathematics.
+                    This is my portfolio/resume/personal website, hosted with SpringBoot on an AWS EC2 server,
+                    and including a custom WebGL naviar-stokes implementation!
+                    As you can see, I have an interest in full-stack development, computer graphics, and anything creative.
+                    There are links below showcasing a subset of my projects/accomplishments,
+                    and if you want a general overview:
+                    <a href="../../static/docs/resume.pdf" th:href="@{static/docs/resume.pdf}" target="_blank">here's the link to my résumé</a>.
+                    For further inquiries, you can reach me at
+                    <a th:text="${email}" th:href"mailto:${email}" href="mailto:reed@evertt.com">reed@evertt.com</a>
+                    :)
+                </p>
+                <h2>Projects:</h2>
                 <ul>
                     <li th:each="page: ${pageList}">
                         <p><a class="page-link" th:text="${page.title}" dest-id="test" th:dest-id="${page.id}">Example page with link</a></p>
                         <p th:text="${page.description}" class="paragraph">Example description</p>
+                    </li>
+                    <li>
+                        <p>More Coming Soon!</p>
+                        <p class="paragraph">It takes a while to make all these pages, you know.</p>
                     </li>
                 </ul>
             </div>

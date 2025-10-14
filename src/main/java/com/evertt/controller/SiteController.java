@@ -26,8 +26,12 @@ public class SiteController {
         applyDefaultContextToMovel(model);
         model.addAttribute("pageList", PAGE_REFS);
         model.addAttribute("splashText", RandomUtil.item(SPLASH_TEXTS));
+        model.addAttribute("email", EMAIL);
         return "home";
     }
+
+    // Constants in case I never need to change them
+    private static final String EMAIL = "reed@evertt.com";
 
     // Flavor text that's mostly there to test/show off thymeleaf's capabilities
     private static final String[] SPLASH_TEXTS = new String[] {
@@ -55,9 +59,10 @@ public class SiteController {
     private static final List<PageRef> PAGE_REFS = List.of(
         // this way of referencing fragments "unwrapped" is depricated, however as far as I'm aware there's no way to have a nested
         // expression inside of the ~{wrapped fragments}, so I guess I'll have to live with the billion warning messages.
-        new PageRef("Test Page #1", "test1", "fragments/pages/test1", "The first test page. Unfortunately, this one is the worst..."),
-        new PageRef("Test Page #2", "test2", "fragments/pages/test2", "The second(!) test page. This one is the best!"),
-        new PageRef("Test Page #3", "test3", "fragments/pages/test3", "The third test page. This one has some quality that rhymes with \"best\", because I guess we're going with an ABB scheme???")
+        new PageRef("This Site", "the-site", "fragments/pages/the-site", "Indeed! The very site you're on! Built with SpringBoot and Thymeleaf, deployed on an AWS EC2 server, equiped with CI/CD using GitHub actions, and not to mention those wonderful shaders in the background!"),
+        new PageRef("Unity Games", "games", "fragments/pages/games", "Two published games (and many more unpublished...) built in Unity with C#, HLSL, and custom sprites, models, sounds, and everything else -- never used a premade asset in my life."),
+        new PageRef("Game Modding", "mods", "fragments/pages/mods", "I've also created many mods and plugins for other games (mostly Minecraft). One in particular I spent three months on full-time -- it's the most complex enemy AI I've ever made!"),
+        new PageRef("Blender Work", "blender", "fragments/pages/blender", "Over the past 5 years, I've been working on an 10-hour long experimental animated film. And you know me, it's full of insanely complex geometry shaders.")
     );
 
     // Attributes, etc. needed for most page renders
