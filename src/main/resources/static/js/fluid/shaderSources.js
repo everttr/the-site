@@ -60,7 +60,7 @@ highp vec4 to(highp float i) {
 //////////////////////////////////////////////
 /*          ~~~ Vertex Shaders ~~~          */
 //////////////////////////////////////////////
-const SHADERSTR_FLUID_SIM_VERT = `#version 300 es
+window.SHADERSTR_FLUID_SIM_VERT = `#version 300 es
 in vec4 aVertexPosition;
 in vec2 aTextureCoord;
 
@@ -75,7 +75,7 @@ void main() {
 }
 `;
 
-const SHADERSTR_FLUID_DRAW_VERT = `#version 300 es
+window.SHADERSTR_FLUID_DRAW_VERT = `#version 300 es
 in vec4 aVertexPosition;
 in vec2 aTextureCoord;
 
@@ -93,7 +93,7 @@ void main() {
 ////////////////////////////////////////////////
 /*          ~~~ Fragment Shaders ~~~          */
 ////////////////////////////////////////////////
-const SHADERSTR_FLUID_SIM_FRAG = `#version 300 es
+window.SHADERSTR_FLUID_SIM_FRAG = `#version 300 es
 layout(location = 0) out highp vec4 outVelocityX;
 layout(location = 1) out highp vec4 outVelocityY;
 layout(location = 2) out highp vec4 outVelocityTempX;
@@ -469,7 +469,7 @@ void main() {
     }
 }`;
 
-const SHADERSTR_FLUID_DRAW_FRAG = `#version 300 es
+window.SHADERSTR_FLUID_DRAW_FRAG = `#version 300 es
 layout(location = 0) out mediump vec4 outColor;
 
 in mediump vec2 vST;

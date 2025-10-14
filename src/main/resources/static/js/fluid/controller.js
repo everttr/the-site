@@ -179,12 +179,12 @@ function refreshCanvas(newWidth, newHeight) {
     curCanvH = newHeight;
 }
 function tryUpdateRepeating(_ = null) {
-    timeCur = document.timeline.currentTime;
-    timeDelta = timeCur - timePrev;
+    let timeCur = document.timeline.currentTime;
+    let timeDelta = timeCur - timePrev;
     timeSim += timeDelta;
     timePrev = timeCur;
     lastTimeDelta = timeDelta;
-    timeDeltaSinceLastIFrame = timeCur - timePrevIFrame;
+    let timeDeltaSinceLastIFrame = timeCur - timePrevIFrame;
 
     // Calculate if this is going to be an expensive I-Frame
     let isIFrame = --frameParity <= 0
@@ -497,12 +497,12 @@ function renderScene(deltaT, texVelX, texVelY, texDens) {
 /*          ~~~ Initialization ~~~          */
 //////////////////////////////////////////////
 
-function initFluidSim() {
+window.initFluidSim = function initFluidSim() {
     if (DEBUG_VERBOSITY >= 2) {
-        console.log(`Fluid Sim Vert:\n${SHADERSTR_FLUID_SIM_VERT}`);
-        console.log(`Fluid Sim Frag:\n${SHADERSTR_FLUID_SIM_FRAG}`);
-        console.log(`Fluid Draw Vert:\n${SHADERSTR_FLUID_DRAW_VERT}`);
-        console.log(`Fluid Draw Frag:\n${SHADERSTR_FLUID_DRAW_FRAG}`);
+        console.log(`Fluid Sim Vert:\n${window.SHADERSTR_FLUID_SIM_VERT}`);
+        console.log(`Fluid Sim Frag:\n${window.SHADERSTR_FLUID_SIM_FRAG}`);
+        console.log(`Fluid Draw Vert:\n${window.SHADERSTR_FLUID_DRAW_VERT}`);
+        console.log(`Fluid Draw Frag:\n${window.SHADERSTR_FLUID_DRAW_FRAG}`);
     }
 
     enabled =
@@ -555,7 +555,7 @@ function initFluidSim() {
         });
 
         // Now unveil the sim itself
-        changeSimVeilVisibility(false);
+        window.changeSimVeilVisibility(false);
     }
 }
 function initCanvas() {
@@ -599,7 +599,7 @@ function loadShader(name, type, source) {
 }
 function initShaderPrograms() {
     let b1 = createShaderProgram("Fluid Simulation", shaders.sim,
-        SHADERSTR_FLUID_SIM_VERT, SHADERSTR_FLUID_SIM_FRAG,
+        window.SHADERSTR_FLUID_SIM_VERT, window.SHADERSTR_FLUID_SIM_FRAG,
         null, [
             ["simTime", "uTime"],
             ["projectionSamplerX", "uTexVTempX"],
@@ -612,7 +612,7 @@ function initShaderPrograms() {
             ["simStepID", "uSimID"]
         ]);
     let b2 = createShaderProgram("Fluid Draw", shaders.draw,
-        SHADERSTR_FLUID_DRAW_VERT, SHADERSTR_FLUID_DRAW_FRAG);
+        window.SHADERSTR_FLUID_DRAW_VERT, window.SHADERSTR_FLUID_DRAW_FRAG);
     return b1 && b2;
 }
 function createShaderProgram(name, storage, vertSource, fragSource,

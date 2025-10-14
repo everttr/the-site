@@ -20,7 +20,7 @@ public class SecurityConfig {
         .authorizeHttpRequests(authorizationManagerRequestMatcherRegistry ->
             authorizationManagerRequestMatcherRegistry
             .requestMatchers("/static/**").permitAll()
-            .requestMatchers("/**").permitAll() // for current debugging purposes
+            .requestMatchers("/home").permitAll()
             .anyRequest().authenticated())
         .httpBasic(Customizer.withDefaults())
         .sessionManagement(httpSecuritySessionManagementConfigurer ->

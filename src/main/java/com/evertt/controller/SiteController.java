@@ -24,7 +24,7 @@ public class SiteController {
     @GetMapping(value = "/home")
     public String home(Model model) {
         applyDefaultContextToMovel(model);
-        model.addAttribute("pageRefs", PAGE_REFS);
+        model.addAttribute("pageList", PAGE_REFS);
         model.addAttribute("splashText", RandomUtil.item(SPLASH_TEXTS));
         return "home";
     }

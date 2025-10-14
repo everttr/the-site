@@ -14,6 +14,7 @@ function changeSimVeilVisibility(val) {
     else
         simVeil.classList.add('disappeared')
 }
+window.changeSimVeilVisibility = changeSimVeilVisibility;
 function gotoPage(id) {
     // Disable all pages except for the one with that ID
     var found = false;
@@ -38,7 +39,7 @@ function gotoPage(id) {
 
 var pageLinks = null;
 var pageDestinations = null;
-function initNavigation() {
+window.initNavigation = function initNavigation() {
     // Find all destination pages
     pageDestinations = document.getElementsByClassName('floating-body');
     // Find all elements with links & make them redirect to their desired page
