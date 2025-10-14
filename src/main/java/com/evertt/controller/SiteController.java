@@ -41,19 +41,21 @@ public class SiteController {
 
     // References to other pages needed by the home page
     private static class PageRef {
-        public String name;
-        public String location;
+        public String title;
+        public String id;
+        public String fragment;
         public String description;
-        public PageRef(String name, String location, String description) {
-            this.name = name;
-            this.location = location;
+        public PageRef(String title, String id, String fragment, String description) {
+            this.title = title;
+            this.id = id;
+            this.fragment = fragment;
             this.description = description;
         }
     }
     private static final List<PageRef> PAGE_REFS = List.of(
-        new PageRef("Test Page #1", "/home", "The first test page. Unfortunately, this one is the worst..."),
-        new PageRef("Test Page #2", "/home", "The second(!) test page. This one is the best!"),
-        new PageRef("Test Page #3", "/home", "The third test page. This one has some quality that rhymes with \"best\", because I guess we're going with an ABB scheme???")
+        new PageRef("Test Page #1", "test1", "test1", "The first test page. Unfortunately, this one is the worst..."),
+        new PageRef("Test Page #2", "test2", "test2", "The second(!) test page. This one is the best!"),
+        new PageRef("Test Page #3", "test3", "test3", "The third test page. This one has some quality that rhymes with \"best\", because I guess we're going with an ABB scheme???")
     );
 
     // Attributes, etc. needed for most page renders
