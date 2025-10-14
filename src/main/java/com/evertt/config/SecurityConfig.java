@@ -21,6 +21,7 @@ public class SecurityConfig {
             authorizationManagerRequestMatcherRegistry
             .requestMatchers("/static/**").permitAll()
             .requestMatchers("/home").permitAll()
+            .requestMatchers("/").permitAll()
             .anyRequest().authenticated())
         .httpBasic(Customizer.withDefaults())
         .sessionManagement(httpSecuritySessionManagementConfigurer ->
