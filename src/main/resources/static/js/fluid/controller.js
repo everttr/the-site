@@ -94,6 +94,7 @@ var mousePosArrSize = 0;
 var curMousePos = null;
 var focused = true;
 var frameParity = 0;
+var animMutex = false;
 
 ////////////////////////////////////////////////////
 /*          ~~~ Function Definitions ~~~          */
@@ -179,32 +180,40 @@ function refreshCanvas(newWidth, newHeight) {
     curCanvH = newHeight;
 }
 function tryUpdateRepeating(_ = null) {
-    let timeCur = document.timeline.currentTime;
-    let timeDelta = timeCur - timePrev;
-    timeSim += timeDelta;
-    timePrev = timeCur;
-    lastTimeDelta = timeDelta;
-    let timeDeltaSinceLastIFrame = timeCur - timePrevIFrame;
+    // so we don't update twice in the same frame for whatever reason
+    if (animMutex)
+        return;
+    animMutex = true;
 
-    // Calculate if this is going to be an expensive I-Frame
-    let isIFrame = --frameParity <= 0
-        || firstRender
-        || timeDeltaSinceLastIFrame > MIN_IFRAME_DIST_REALTIME_MS;
-    if (isIFrame) {
-        frameParity = RENDER_FRAME_INTERVAL;
-        timePrevIFrame = timeCur;
+    try {
+        let timeCur = document.timeline.currentTime;
+        let timeDelta = timeCur - timePrev;
+        timeSim += timeDelta;
+        timePrev = timeCur;
+        lastTimeDelta = timeDelta;
+        let timeDeltaSinceLastIFrame = timeCur - timePrevIFrame;
+    
+        // Calculate if this is going to be an expensive I-Frame
+        let isIFrame = --frameParity <= 0
+            || firstRender
+            || timeDeltaSinceLastIFrame > MIN_IFRAME_DIST_REALTIME_MS;
+        if (isIFrame) {
+            frameParity = RENDER_FRAME_INTERVAL;
+            timePrevIFrame = timeCur;
+        }
+    
+        // Only render every N frames (because jeez it's expensive!)
+        updateSim(timeDeltaSinceLastIFrame / 1000.0 * Math.max(1, RENDER_FRAME_INTERVAL),
+            timeSim / 1000.0, isIFrame);
+    
+        if (focused)
+            requestAnimationFrame(tryUpdateRepeating);
+    }
+    catch (e) {
+        console.error(e);
     }
     
-    // so we don't update twice in the same frame for whatever reason
-    if (timeDelta == 0 && !firstRender)
-        return;
-
-    // Only render every N frames (because jeez it's expensive!)
-    updateSim(timeDeltaSinceLastIFrame / 1000.0 * Math.max(1, RENDER_FRAME_INTERVAL),
-        timeSim / 1000.0, isIFrame);
-
-    if (focused)
-        requestAnimationFrame(tryUpdateRepeating);
+    animMutex = false;
 }
 function updateSim(deltaTSinceLastIFrame, timeSim, isIFrame) {
     // On start, arbitrarily assign which sim textures are input/output
