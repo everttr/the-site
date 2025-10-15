@@ -60,8 +60,8 @@ public class SiteController {
         // this way of referencing fragments "unwrapped" is depricated, however as far as I'm aware there's no way to have a nested
         // expression inside of the ~{wrapped fragments}, so I guess I'll have to live with the billion warning messages.
         new PageRef("This Site", "the-site", "fragments/pages/the-site", "Indeed! The very site you're on! Built with SpringBoot and Thymeleaf, deployed on an AWS EC2 server, equiped with CI/CD using GitHub actions, and not to mention those wonderful shaders in the background!"),
-        new PageRef("Unity Games", "games", "fragments/pages/games", "Two published games (and many more unpublished...) built in Unity with C#, HLSL, and custom sprites, models, sounds, and everything else -- never used a premade asset in my life."),
-        new PageRef("Game Modding", "mods", "fragments/pages/mods", "I've also created many mods and plugins for other games (mostly Minecraft). One in particular I spent three months on full-time -- it's the most complex enemy AI I've ever made!"),
+        new PageRef("Unity Games", "games", "fragments/pages/games", "Two published games (and many more unpublished...) built in Unity with C#, HLSL, custom sprites, models, sounds, and everything else - never used a premade asset in my life."),
+        new PageRef("Game Modding", "mods", "fragments/pages/mods", "I've also created many mods and plugins for other games (mostly Minecraft). One in particular I spent three months on full-time; it's the most complex enemy AI I've ever made!"),
         new PageRef("Blender Work", "blender", "fragments/pages/blender", "Over the past 5 years, I've been working on an 10-hour long experimental animated film. And you know me, it's full of insanely complex geometry shaders.")
     );
 
