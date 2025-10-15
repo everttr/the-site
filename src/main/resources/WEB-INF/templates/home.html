@@ -61,7 +61,7 @@
         <!-- Main Body -->
         <div class="floating-body" page-id="home">
             <!-- Splash -->
-            <div class="body-container">
+            <div class="body-container" id="splash-container">
                 <div id="splash">
                     <p th:text="${splashText}">Example Splash!</p>
                 </div>
@@ -69,11 +69,27 @@
 
             <!-- Content -->
             <div class="body-container paragraph-container">
-                <h2>Pages:</h2>
+                <p class="paragraph">
+                    I'm a senior at Oregon State University majoring in Computer Science and minoring in Mathematics.
+                    This is my portfolio/résumé/personal website, hosted with SpringBoot on an AWS EC2 server,
+                    and including a custom WebGL navier-stokes implementation!
+                    As you can see, I have an interest in full-stack development, computer graphics, and anything creative.
+                    There are links below showcasing a subset of my projects/accomplishments,
+                    and if you want a general overview:
+                    <a href="../../static/docs/resume.pdf" th:href="@{static/docs/resume.pdf}" target="_blank">here's the link to my résumé</a>.
+                    For further inquiries, you can reach me at
+                    <a th:text="${email}" th:href"mailto:${email}" href="mailto:reed@evertt.com">reed@evertt.com</a>
+                    :)
+                </p>
+                <h2>Projects:</h2>
                 <ul>
                     <li th:each="page: ${pageList}">
                         <p><a class="page-link" th:text="${page.title}" dest-id="test" th:dest-id="${page.id}">Example page with link</a></p>
                         <p th:text="${page.description}" class="paragraph">Example description</p>
+                    </li>
+                    <li>
+                        <p><i><u>More Coming Soon!</u></i></p>
+                        <p class="paragraph">It takes a while to make all these pages, you know.</p>
                     </li>
                 </ul>
             </div>
@@ -104,7 +120,7 @@
     <!-- Site Footer -->
     <div th:replace="~{fragments/footer :: footer}">
         <footer th:fragment="footer" id="page-footer" class="page-sandwich-bun">
-            <div id="footer-date">
+            <div id="page-footer">
                 Server Time: the <span th:text="${day}">Nth</span> day of the <span th:text="${month}">Nth</span> month of the <span th:text="${year}">Nth</span> year CE.
             </div>
         </footer>

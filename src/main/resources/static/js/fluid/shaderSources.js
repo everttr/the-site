@@ -1,4 +1,4 @@
-// Basic Naviar-Stokes implementation somewhat based on the one from:
+// Basic Navier-Stokes implementation somewhat based on the one from:
 // http://graphics.cs.cmu.edu/nsp/course/15-464/Fall09/papers/StamFluidforGames.pdf
 // Simplex noise implementation based on the one from:
 // https://github.com/SRombauts/SimplexNoise/blob/master/src/SimplexNoise.cpp
